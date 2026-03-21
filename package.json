@@ -1,0 +1,16 @@
+{
+  "name": "wander-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/frontend",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=apps/frontend\" \"python apps/backend/main.py\"",
+    "install-all": "npm install && pip install -r apps/backend/requirements.txt"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
