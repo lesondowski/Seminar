@@ -1,4 +1,4 @@
-import { usePOI } from '../hooks/usePOI'
+import { usePOI } from '../../hooks/usePOI'
 
 interface Props {
   id: number
