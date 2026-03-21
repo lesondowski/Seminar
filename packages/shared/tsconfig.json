@@ -6,5 +6,5 @@
     "outDir": "./dist",
     "strict": true
   },
-  "include": ["types.ts"]
+  "include": ["index.ts"]
 }

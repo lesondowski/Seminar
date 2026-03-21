@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -14,7 +15,7 @@ class POICreate(POIBase):
 
 class POIRead(POIBase):
     id: int
-    qrcodes: List["QRCodeRead"] = []
+    qrcodes: List[QRCodeRead] = []
 
 class QRCodeBase(BaseModel):
     code: str

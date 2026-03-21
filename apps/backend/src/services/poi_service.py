@@ -3,6 +3,7 @@ from schemas.poi_schemas import POIRead, ProgressCreate, ProgressRead
 from models import UserProgress
 from sqlmodel import select
 from datetime import datetime
+from typing import List, Optional
 
 class POIService:
     def __init__(self, repo: POIRepository):
@@ -12,13 +13,13 @@ class POIService:
         pois = self.repo.get_all_pois()
         return [POIRead.from_orm(poi) for poi in pois]
 
-    def get_poi(self, poi_id: int) -> POIRead | None:
+    def get_poi(self, poi_id: int) -> Optional[POIRead]:
         poi = self.repo.get_poi_by_id(poi_id)
         if poi:
             return POIRead.from_orm(poi)
         return None
 
-    def scan_qr(self, qr_code: str) -> POIRead | None:
+    def scan_qr(self, qr_code: str) -> Optional[POIRead]:
         poi = self.repo.get_poi_by_qr(qr_code)
         if poi:
             return POIRead.from_orm(poi)

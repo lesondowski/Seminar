@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
-import { POI, Progress } from '@wander/shared'
 import * as poiService from '../services/poiService'
 
 export const usePOIs = () => {
-  const [pois, setPois] = useState<POI[]>([])
+  const [pois, setPois] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -18,7 +17,7 @@ export const usePOIs = () => {
 }
 
 export const usePOI = (id: number) => {
-  const [poi, setPoi] = useState<POI | null>(null)
+  const [poi, setPoi] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -54,7 +53,7 @@ export const useScanQR = () => {
 }
 
 export const useProgress = (userId: string) => {
-  const [progress, setProgress] = useState<Progress[]>([])
+  const [progress, setProgress] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 

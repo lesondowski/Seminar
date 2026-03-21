@@ -1,9 +1,9 @@
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
-import { usePOIs } from '../poi/usePOI'
+import { usePOIs } from '../../hooks/usePOI'
 import { POIDetail } from '../poi/POIDetail'
 import 'leaflet/dist/leaflet.css'
 
-export const MapView = () => {
+const MapView = () => {
   const { pois } = usePOIs()
   return (
     <MapContainer center={[16.47, 107.6]} zoom={13} style={{ height: '100vh' }}>
@@ -18,3 +18,5 @@ export const MapView = () => {
     </MapContainer>
   )
 }
+
+export default MapView

@@ -1,4 +1,4 @@
-# WanderScan Monorepo
+# Travel in town
 
 ## Setup
 

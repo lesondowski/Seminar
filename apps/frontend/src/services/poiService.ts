@@ -1,12 +1,34 @@
-import { apiClient } from './apiClient'
-import { POI } from '@wander/shared'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
-export const getPOIs = (): Promise<POI[]> => apiClient.get<POI[]>('/pois')
+export const getPOIs = async (): Promise<any[]> => {
+  const res = await fetch(`${API_BASE}/pois`)
+  return res.json()
+}
 
-export const getPOI = (id: number): Promise<POI> => apiClient.get<POI>(`/pois/${id}`)
+export const getPOI = async (id: number): Promise<any> => {
+  const res = await fetch(`${API_BASE}/pois/${id}`)
+  return res.json()
+}
 
-export const scanQR = (qr: string): Promise<POI> => apiClient.post<POI>('/scan', { qr_code: qr })
+export const scanQR = async (qr: string): Promise<any> => {
+  const res = await fetch(`${API_BASE}/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ qr_code: qr })
+  })
+  return res.json()
+}
 
-export const markProgress = (userId: string, poiId: number): Promise<any> => apiClient.post('/progress', { user_id: userId, poi_id: poiId })
+export const markProgress = async (userId: string, poiId: number): Promise<any> => {
+  const res = await fetch(`${API_BASE}/progress`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, poi_id: poiId })
+  })
+  return res.json()
+}
 
-export const getProgress = (userId: string): Promise<any[]> => apiClient.get(`/progress/${userId}`)
+export const getProgress = async (userId: string): Promise<any[]> => {
+  const res = await fetch(`${API_BASE}/progress/${userId}`)
+  return res.json()
+}
