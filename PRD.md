@@ -1,356 +1,208 @@
-# Product Requirements Document (PRD) v1.0
+# Smart Food Tour App – Khu phố ẩm thực Vĩnh Khánh
 
-## WanderScan - Smart Tourism Guide System
+## 1. Overview
 
----
+Smart Food Tour App là ứng dụng web hỗ trợ khách tham quan khám phá khu phố ẩm thực Vĩnh Khánh thông qua bản đồ GPS, nội dung đa ngôn ngữ, audio guide và chatbot AI.
 
-## Document Information
+Hệ thống đóng vai trò như một "tour guide ảo", giúp người dùng tự khám phá khu phố mà không cần hướng dẫn viên.
 
-| Field           | Value                            |
-| --------------- | -------------------------------- |
-| Product Name    | WanderScan                       |
-| Version         | 1.0 (MVP)                        |
-| Document Date   | March 2026                       |
-| Status          | Draft for Development            |
-| Owner           | Product Owner / Business Analyst |
-| Target Audience | Dev Team, QA, Stakeholders       |
+Ứng dụng hoạt động trực tiếp trên trình duyệt (mobile-first), không cần cài đặt.
 
 ---
 
-# 1. Executive Summary
+## 2. Product Goals
 
-## 1.1 Overview
+### 2.1 Primary Goals
+- Cung cấp trải nghiệm tham quan ẩm thực tự động
+- Giảm phụ thuộc vào tour guide truyền thống
+- Tăng thời gian tương tác của người dùng trong khu phố
 
-**WanderScan** is a web-based tourism guidance platform that allows users to explore a specific location (district, heritage site, city zone) without needing a human tour guide.
-
-The system integrates:
-
-* GPS-based navigation
-* Interactive map
-* QR scanning for location-based content
-* Progress tracking
-
-Users can navigate through Points of Interest (POIs), scan QR codes at real-world locations, and access rich digital content such as text, media, and 3D models.
+### 2.2 Secondary Goals
+- Tăng doanh thu cho các quán ăn
+- Hỗ trợ khách quốc tế thông qua đa ngôn ngữ
+- Chuẩn hóa dữ liệu về địa điểm và món ăn
 
 ---
 
-## 1.2 Goals
+## 3. Actors
 
-### Primary Goal
-
-Provide a self-guided tourism experience using GPS + QR + digital content
-
-### Secondary Goals
-
-* Replace traditional tour guide workflows
-* Enhance tourist engagement with interactive content
-* Track user progress across locations
-* Enable scalable digital tourism infrastructure
+- Visitor: Khách tham quan sử dụng ứng dụng
+- Admin: Quản lý dữ liệu POI và tour
+- Staff: Nhân viên cung cấp OTP cho thanh toán offline
+- System: Backend, AI services, database
 
 ---
 
-# 2. Scope Definition
+## 4. Business Flow
 
-## 2.1 In-Scope (MVP v1.0)
+### 4.1 Entry
 
-### Module 1: User Access
-
-* No login required (anonymous usage)
-* Optional session tracking
-
----
-
-### Module 2: Map & Location
-
-* Display interactive map
-* Show all POIs in selected area
-* Detect and update user location (GPS)
-* Highlight nearby POIs
+1. Người dùng quét QR code tại khu phố
+2. Trình duyệt mở web app
+3. Hệ thống xác định ngôn ngữ thiết bị
 
 ---
 
-### Module 3: POI Exploration
+### 4.2 Payment
 
-* View POIs in:
+Người dùng có thể chọn:
 
-  * Map view
-  * List view
-* Click POI to see preview:
+#### Online Payment
+1. Người dùng chọn thanh toán online
+2. Frontend gửi request đến backend để tạo payment link
+3. Backend tạo auth_code và gọi payment service
+4. Payment service trả về URL thanh toán
+5. Người dùng hoàn tất thanh toán
+6. Payment service gửi webhook về backend
+7. Backend xác nhận thanh toán thành công
 
-  * Name
-  * Description
-  * Image
-
----
-
-### Module 4: QR Scan Interaction
-
-* Scan QR at real-world locations
-* Validate QR → map to POI
-* Display detailed content:
-
-  * Description
-  * Images
-  * Video
-  * 3D model (basic MVP placeholder)
+#### Offline Payment
+1. Người dùng chọn thanh toán tiền mặt
+2. Nhập OTP từ nhân viên
+3. Backend xác thực OTP và cấp quyền truy cập
 
 ---
 
-### Module 5: Tour Progress Tracking
+### 4.3 Initialization
 
-* Mark POI as completed after scan
-* Track visited vs unvisited locations
-* Show progress (% completion)
-
----
-
-### Module 6: Tour Flow
-
-* Start tour
-* Navigate between POIs
-* Receive suggestion for next POI
+1. Sau khi xác thực thành công:
+   - Hệ thống load toàn bộ dữ liệu POI
+   - Lưu dữ liệu tại frontend
+2. Bắt đầu tracking GPS của người dùng
 
 ---
 
-## 2.2 Out-of-Scope (Future Enhancements)
+### 4.4 Mode Selection
 
-* AR/VR advanced rendering
-* AI chatbot guide (RAG)
-* Multi-language support
-* Social sharing
-* Offline mode
-* Gamification (badges, leaderboard)
-* Admin dashboard
-* Payment / ticket integration
+Người dùng chọn một trong hai chế độ:
+
+- Explore Mode: tự do khám phá
+- Food Tour Mode: đi theo lộ trình gợi ý
 
 ---
 
-# 3. User Personas
+### 4.5 Experience
 
-## 3.1 Primary Persona
+#### Explore Mode
+- Người dùng chọn POI bất kỳ trên bản đồ
+- Hệ thống hiển thị thông tin chi tiết
 
-**Name:** Linh Tran
-**Age:** 18–35
-**Role:** Tourist / Traveler
-
-### Goals
-
-* Explore a location without guide
-* Learn history/info of places
-* Navigate easily
-
-### Pain Points
-
-* Lack of information at sites
-* Hard to follow tour route
-* No structured experience
+#### Tour Mode
+- Hệ thống hiển thị danh sách POI theo thứ tự
+- Khi người dùng di chuyển đến gần POI:
+  - Nội dung tự động hiển thị
+  - Có thể tự động phát audio
 
 ---
 
-# 4. User Stories
+### 4.6 Chatbot
 
-| ID     | Module     | User Story                                         | Priority |
-| ------ | ---------- | -------------------------------------------------- | -------- |
-| US-001 | Map        | As a user, I want to see all POIs on a map         | P0       |
-| US-002 | GPS        | As a user, I want the system to detect my location | P0       |
-| US-003 | POI        | As a user, I want to view POI details              | P0       |
-| US-004 | QR         | As a user, I want to scan QR to access content     | P0       |
-| US-005 | Progress   | As a user, I want to mark POI as visited           | P0       |
-| US-006 | Navigation | As a user, I want route suggestions                | P1       |
-| US-007 | Experience | As a user, I want to view media/3D content         | P1       |
+- Người dùng nhập câu hỏi tự nhiên
+- Hệ thống trả lời dựa trên dữ liệu POI
 
 ---
 
-# 5. Functional Requirements
+### 4.7 Exit
 
-## 5.1 Map System
-
-**FR-MAP-001:** Display POIs on map
-**FR-MAP-002:** Show user location in real-time
-**FR-MAP-003:** Highlight nearby POIs
+- Người dùng kết thúc trải nghiệm
+- (Optional) ghi nhận dữ liệu usage
 
 ---
 
-## 5.2 POI System
+## 5. Core Features
 
-**FR-POI-001:** View POI details
-**FR-POI-002:** Show preview content
-**FR-POI-003:** Categorize POIs
+### 5.1 Map and Navigation
 
----
-
-## 5.3 QR System
-
-**FR-QR-001:** Scan QR code
-**FR-QR-002:** Validate QR → POI
-**FR-QR-003:** Load POI content
+- Hiển thị toàn bộ POI trên bản đồ
+- Hiển thị vị trí hiện tại của người dùng
+- Highlight các POI gần nhất
+- Không yêu cầu gọi API sau khi load ban đầu
 
 ---
 
-## 5.4 Progress Tracking
+### 5.2 POI Experience
 
-**FR-PROG-001:** Mark POI completed
-**FR-PROG-002:** Track progress
-**FR-PROG-003:** Show completion percentage
-
----
-
-## 5.5 Navigation
-
-**FR-NAV-001:** Suggest next POI
-**FR-NAV-002:** Calculate distance (basic)
+Mỗi POI bao gồm:
+- Tên quán
+- Mô tả món ăn
+- Khoảng giá
+- Hình ảnh
+- Nội dung audio
 
 ---
 
-# 6. Acceptance Criteria
+### 5.3 Audio System
 
-### AC-001: View Map
-
-**GIVEN** user opens app
-**WHEN** map loads
-**THEN** all POIs are displayed
+- Phát audio theo ngôn ngữ người dùng
+- Có thể play / pause / resume
+- Audio được generate sẵn từ hệ thống
 
 ---
 
-### AC-002: Scan QR
+### 5.4 Tour System
 
-**GIVEN** user scans QR
-**WHEN** QR is valid
-**THEN** POI content is shown
+- Tour là danh sách POI có thứ tự
+- Người dùng di chuyển theo route
+- Hệ thống trigger nội dung dựa trên khoảng cách
 
----
-
-### AC-003: Complete POI
-
-**GIVEN** user views POI content
-**WHEN** user clicks "Completed"
-**THEN** POI is marked visited
 
 ---
 
-# 7. Non-Functional Requirements
+### 5.5 Chatbot
 
-### Performance
-
-* Load map < 2s
-* QR scan response < 1s
-
-### Usability
-
-* Mobile-friendly UI
-* Simple navigation
-
-### Reliability
-
-* No duplicate completion
-* Accurate GPS tracking
+- Hỗ trợ hỏi đáp:
+  - Quán ngon
+  - Món nổi bật
+  - Giá cả
+- Sử dụng RAG từ dữ liệu POI
+- Có thể ưu tiên thông tin gần vị trí user
 
 ---
 
-# 8. Data Model
+## 6. Functional Requirements
 
-## POI
+### 6.1 Payment
 
-```ts
-interface POI {
-  id: string
-  name: string
-  description: string
-  latitude: number
-  longitude: number
-  qrCode: string
-  image: string
-}
-```
+- Tạo payment link
+- Nhận webhook xác nhận
+- Verify trạng thái thanh toán
+- Hỗ trợ retry khi pending
 
 ---
 
-## User Progress
+### 6.2 Map
 
-```ts
-interface Progress {
-  userId: string
-  visitedPOIs: string[]
-  completedAt: string
-}
-```
+- Cập nhật vị trí mỗi 2–5 giây
+- Render marker theo category
+- Xác định POI gần nhất
 
 ---
 
-# 9. API Design
+### 6.3 POI
 
-### GET /pois
-
-→ Get all POIs
-
-### GET /pois/:id
-
-→ Get POI details
-
-### POST /scan
-
-→ Validate QR
+- Hiển thị thông tin đầy đủ
+- Hỗ trợ đa ngôn ngữ
+- Phát audio tương ứng
 
 ---
 
-# 10. UI/UX
+### 6.4 Tour
 
-* Map-first design
-* Mobile optimized
-* Simple scan interaction
-
----
-
-# 11. Business Rules
-
-* QR must map to valid POI
-* Cannot complete POI without scan
-* Progress must be unique per POI
+- Lưu danh sách POI theo thứ tự
+- Trigger nội dung theo GPS
+- Cho phép user follow route
 
 ---
 
-# 12. Tech Stack
+### 6.5 Chatbot
 
-### Frontend
-
-* React + TypeScript
-* Mapbox / Leaflet
-
-### Backend
-
-* FastAPI / Node.js
-
-### Database
-
-* PostgreSQL
+- Nhận input text
+- Trả lời trong < 3 giây
+- Fallback khi không có dữ liệu
 
 ---
 
-# 13. Risks
+## 7. Data Model
 
-| Risk           | Impact | Mitigation    |
-| -------------- | ------ | ------------- |
-| Fake QR        | High   | Validate QR   |
-| GPS inaccurate | Medium | Add threshold |
-| User confusion | Medium | Improve UX    |
+### 7.1 POI
 
----
-
-# 14. Future Enhancements
-
-* AI tour guide (RAG)
-* 3D/AR objects
-* Gamification
-* Offline mode
-
----
-
-# 15. Success Criteria
-
-* User can complete full tour
-* QR scan works reliably
-* Map navigation accurate
-
----
-
-# End of Document
