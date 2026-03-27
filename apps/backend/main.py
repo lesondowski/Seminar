@@ -6,8 +6,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.poi_routes import router
-from core.database import create_db_and_tables
+from src.api.poi_routes import router
+from src.core.database import create_db_and_tables
 
 # Create database tables
 create_db_and_tables()
