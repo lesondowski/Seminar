@@ -27,60 +27,9 @@ Hệ thống đóng vai trò như một "tour guide ảo", giúp người dùng 
 ## 3. Actors
 
 - Visitor: Khách tham quan sử dụng ứng dụng
-- Shop Owner: Chủ quán
 - Admin: Quản lý dữ liệu POI và tour
 - Staff: Nhân viên cung cấp OTP cho thanh toán offline
 - System: Backend, AI services, database
-
-### 3.1 Visitor (Khách tham quan)
-
-
-- Sử dụng web app để khám phá
-- Thanh toán (online/offline)
-- Xem bản đồ, POI, audio, chatbot
-
-### 3.2 Merchant / Shop Owner (Chủ quán)
-
-1. Đăng ký / đăng nhập tài khoản
-
-2. Tạo và quản lý cửa hàng của mình:
-
-- Thêm POI (quán ăn)
-
-3. Cập nhật thông tin:
-- Tên quán
-- Mô tả món ăn
-- Giá
-- Hình ảnh
-- Upload / chỉnh sửa nội dung
-
-4. Xem thống kê cơ bản:
-- Lượt xem
-- Lượt click / ghé gần
-- Không được sửa dữ liệu của quán khác
-
-### 3.3 Admin
-
-- Quản lý toàn bộ hệ thống
-- Duyệt / kiểm duyệt POI từ chủ quán
-- Tạo và chỉnh sửa tour
-- Quản lý nội dung đa ngôn ngữ
-- Quản lý user (Merchant)
-
-### 3.4 Staff
-
-- Nhân viên tại khu phố
-- Cung cấp OTP cho thanh toán offline
-- Không truy cập hệ thống backend
-
-
-### 3.5 System
-
-- Backend (FastAPI, DB, Redis)
-- Payment service
-- AI chatbot (RAG)
-- GPS tracking
-
 
 ---
 
@@ -145,28 +94,15 @@ Người dùng chọn một trong hai chế độ:
   - Có thể tự động phát audio
 
 ---
-### 4.6 POI Creation Flow
 
-1. Owner tạo POI
-2. POI = pending
-3. Admin review:
-- approve → hiển thị
-- reject → chỉnh sửa lại
-4. Sau khi approved:
-- xuất hiện trên map
-- dùng trong tour
-
-
-
-
-### 4.7 Chatbot
+### 4.6 Chatbot
 
 - Người dùng nhập câu hỏi tự nhiên
 - Hệ thống trả lời dựa trên dữ liệu POI
 
 ---
 
-### 4.8 Exit
+### 4.7 Exit
 
 - Người dùng kết thúc trải nghiệm
 - (Optional) ghi nhận dữ liệu usage
@@ -220,15 +156,6 @@ Mỗi POI bao gồm:
   - Giá cả
 - Sử dụng RAG từ dữ liệu POI
 - Có thể ưu tiên thông tin gần vị trí user
-
-
-### 5.6 Owner Dashboard
-
-
-- CRUD POI
-- Upload content
-- Xem stats
-
 
 ---
 
