@@ -1,1 +1,77 @@
-node_modules
+# =========================
+# Node / Next.js
+# =========================
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env
+.env
+.env.local
+.env.development
+.env.production
+
+# Vercel
+.vercel
+
+# =========================
+# Python / FastAPI
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# virtual env
+venv/
+.env/
+.envrc
+
+# =========================
+# RAG / Data / Vector DB
+# =========================
+data/raw/
+data/processed/
+data/vector/
+
+*.faiss
+*.index
+*.pkl
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Logs & temp
+# =========================
+*.log
+tmp/
+temp/
+
+# =========================
+# Upload files
+# =========================
+uploads/
+
+# =========================
+# Docker
+# =========================
+*.pid
+*.seed
+docker-compose.override.yml
