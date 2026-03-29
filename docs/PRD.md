@@ -27,28 +27,30 @@ Hệ thống đóng vai trò như một "tour guide ảo", giúp người dùng 
 ## 3. Actors
 
 - Visitor: Khách tham quan sử dụng ứng dụng
-- Shop Owner: Chủ quán
+- Restaurant: Chủ quán
 - Admin: Quản lý dữ liệu POI và tour
-- Staff: Nhân viên cung cấp OTP cho thanh toán offline
 - System: Backend, AI services, database
 
 ### 3.1 Visitor (Khách tham quan)
 
 
 - Sử dụng web app để khám phá
-- Thanh toán (online/offline)
 - Xem bản đồ, POI, audio, chatbot
 
-### 3.2 Merchant / Shop Owner (Chủ quán)
+
+
+### 3.2 Restaurant (Chủ quán)
 
 1. Đăng ký / đăng nhập tài khoản
 
 2. Tạo và quản lý cửa hàng của mình:
 
-- Thêm POI (quán ăn)
+- Thêm POI ( Một chủ cửa hàng có thể có nhiều POI)
 
 3. Cập nhật thông tin:
+
 - Tên quán
+- Phân loại ( chọn theo setup của admin)
 - Mô tả món ăn
 - Giá
 - Hình ảnh
@@ -56,7 +58,6 @@ Hệ thống đóng vai trò như một "tour guide ảo", giúp người dùng 
 
 4. Xem thống kê cơ bản:
 - Lượt xem
-- Lượt click / ghé gần
 - Không được sửa dữ liệu của quán khác
 
 ### 3.3 Admin
@@ -67,14 +68,7 @@ Hệ thống đóng vai trò như một "tour guide ảo", giúp người dùng 
 - Quản lý nội dung đa ngôn ngữ
 - Quản lý user (Merchant)
 
-### 3.4 Staff
-
-- Nhân viên tại khu phố
-- Cung cấp OTP cho thanh toán offline
-- Không truy cập hệ thống backend
-
-
-### 3.5 System
+### 3.4 System
 
 - Backend (FastAPI, DB, Redis)
 - Payment service
@@ -88,55 +82,40 @@ Hệ thống đóng vai trò như một "tour guide ảo", giúp người dùng 
 
 ### 4.1 Entry
 
-1. Người dùng quét QR code tại khu phố
-2. Trình duyệt mở web app
-3. Hệ thống xác định ngôn ngữ thiết bị
+1. Người dùng quét QR code tại khu phố( quét để mở app )
+2. Người dùng đăng nhập bằng Email
+3. Trình duyệt mở web app
+4. Hệ thống xác định ngôn ngữ thiết bị
 
 ---
 
-### 4.2 Payment
 
-Người dùng có thể chọn:
+### 4.2 Initialization
 
-#### Online Payment
-1. Người dùng chọn thanh toán online
-2. Frontend gửi request đến backend để tạo payment link
-3. Backend tạo auth_code và gọi payment service
-4. Payment service trả về URL thanh toán
-5. Người dùng hoàn tất thanh toán
-6. Payment service gửi webhook về backend
-7. Backend xác nhận thanh toán thành công
-
-#### Offline Payment
-1. Người dùng chọn thanh toán tiền mặt
-2. Nhập OTP từ nhân viên
-3. Backend xác thực OTP và cấp quyền truy cập
-
----
-
-### 4.3 Initialization
-
-1. Sau khi xác thực thành công:
+1. Login bằng Email
+2. Sau khi xác thực thành công:
    - Hệ thống load toàn bộ dữ liệu POI
    - Lưu dữ liệu tại frontend
-2. Bắt đầu tracking GPS của người dùng
+3. Bắt đầu tracking GPS của người dùng
 
 ---
 
-### 4.4 Mode Selection
+### 4.3 Mode Selection
 
 Người dùng chọn một trong hai chế độ:
 
 - Explore Mode: tự do khám phá
-- Food Tour Mode: đi theo lộ trình gợi ý
+- Food Tour Mode: đi theo lộ trình gợi ý( tìm đường đi ngắn nhất)
 
 ---
 
-### 4.5 Experience
+### 4.4 Experience
 
 #### Explore Mode
 - Người dùng chọn POI bất kỳ trên bản đồ
 - Hệ thống hiển thị thông tin chi tiết
+- Có thể tự động phát audio
+
 
 #### Tour Mode
 - Hệ thống hiển thị danh sách POI theo thứ tự
