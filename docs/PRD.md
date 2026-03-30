@@ -114,7 +114,7 @@ Người dùng chọn một trong hai chế độ:
 #### Explore Mode
 - Người dùng chọn POI bất kỳ trên bản đồ
 - Hệ thống hiển thị thông tin chi tiết
-- Có thể tự động phát audio
+- Có thể tự động phát audio( không lưu audio vào db)
 
 
 #### Tour Mode
@@ -124,7 +124,7 @@ Người dùng chọn một trong hai chế độ:
   - Có thể tự động phát audio
 
 ---
-### 4.6 POI Creation Flow
+### 4.5 POI Creation Flow
 
 1. Owner tạo POI
 2. POI = pending
@@ -138,14 +138,14 @@ Người dùng chọn một trong hai chế độ:
 
 
 
-### 4.7 Chatbot
+### 4.6 Chatbot
 
 - Người dùng nhập câu hỏi tự nhiên
 - Hệ thống trả lời dựa trên dữ liệu POI
 
 ---
 
-### 4.8 Exit
+### 4.7 Exit
 
 - Người dùng kết thúc trải nghiệm
 - (Optional) ghi nhận dữ liệu usage
