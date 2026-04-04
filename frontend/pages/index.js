@@ -2,10 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Navbar from '../components/common/Navbar';
 import MapComponent from '../components/map/MapComponent';
+import TourCartPanel from '../components/common/TourCartPanel';
 import { mockPOIs } from '../utils/api/mockData';
+import { useLanguage } from '../utils/i18n/LanguageContext';
+import { NoodleBowlIcon, StarIcon } from '../components/common/Icons';
 
 export default function Home() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [pois, setPOIs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -56,7 +60,7 @@ export default function Home() {
       <>
         <Navbar />
         <div className="flex items-center justify-center h-screen">
-          <p>Đang tải nội dung...</p>
+          <p>{t('home_loading')}</p>
         </div>
       </>
     );
@@ -65,6 +69,7 @@ export default function Home() {
   return (
     <>
       <Navbar />
+      <TourCartPanel />
       <div className="min-h-screen bg-[#FFFFFF] p-4">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
@@ -83,7 +88,7 @@ export default function Home() {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Tìm kiếm..."
+                    placeholder={t('home_search_placeholder')}
                   className="w-full pl-10 pr-4 py-2 rounded-lg border border-[#DDDDDD] focus:outline-none focus:ring-2 focus:ring-[#212121]"
                   style={{
                     height: "36px", 
@@ -91,33 +96,6 @@ export default function Home() {
                   }}
                 />
               </div>
-            </div>
-
-            {/* Tab Buttons */}
-            <div className="flex gap-4 mt-6">
-              <button
-                onClick={() => { setActiveTab('explore'); handleExplore(); }}
-                className={`px-6 py-2 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${activeTab === 'explore' ? 'bg-[#333333] text-white' : 'bg-[#FFFFFF] text-[#212121] border border-[#DDDDDD] hover:bg-[#F5F5F5]'}`}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 14.12 9.88 16.24 7.76"></polygon>
-                </svg>
-                Khám phá
-              </button>
-              <button
-                onClick={() => { setActiveTab('tour'); handleTour(); }}
-                className={`px-6 py-2 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${activeTab === 'tour' ? 'bg-[#333333] text-white' : 'bg-[#FFFFFF] text-[#212121] border border-[#DDDDDD] hover:bg-[#F5F5F5]'}`}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14.828 14.828a4 4 0 0 1-5.656 0"></path>
-                  <path d="M9 10h1.586a1 1 0 0 1 .707.293l.707.707A1 1 0 0 0 13.414 11H15a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2z"></path>
-                  <circle cx="9" cy="12" r="1"></circle>
-                  <circle cx="15" cy="12" r="1"></circle>
-                  <path d="M7 5h10v2a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5z"></path>
-                </svg>
-                Tour
-              </button>
             </div>
           </div>
 
@@ -141,7 +119,7 @@ export default function Home() {
                 >
                   {/* POI Image or Icon */}
                   <div className="relative bg-gradient-to-br from-blue-100 to-purple-100 h-32 flex items-center justify-center">
-                    <div className="text-4xl">🍲</div>
+                    <NoodleBowlIcon className="w-12 h-12 text-[#374151]" />
                   </div>
 
                   {/* POI Info */}
@@ -151,7 +129,7 @@ export default function Home() {
 
                     {/* Rating and Price */}
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-yellow-500">⭐ {poi.rating}</span>
+                      <span className="text-yellow-500 inline-flex items-center gap-1"><StarIcon className="w-4 h-4" /> {poi.rating}</span>
                       <span className="text-[#757575] font-semibold">{poi.price}</span>
                     </div>
                   </div>
@@ -159,7 +137,7 @@ export default function Home() {
               ))
             ) : (
               <div className="col-span-full text-center py-12">
-                <p className="text-[#757575]">Không tìm thấy quán ăn nào</p>
+                <p className="text-[#757575]">{t('map_no_poi')}</p>
               </div>
             )}
           </div>

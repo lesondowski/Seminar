@@ -3,7 +3,19 @@ import Button from '../common/Button';
 import Loading from '../common/Loading';
 import Modal from '../common/Modal';
 import MapComponent from './MapComponent';
-import { ClockIcon, LocationIcon, PriceIcon, ChatIcon } from '../common/Icons';
+import {
+  ClockIcon,
+  LocationIcon,
+  PriceIcon,
+  ChatIcon,
+  WarningIcon,
+  CheckIcon,
+  StarIcon,
+  MapPinIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  NoodleBowlIcon,
+} from '../common/Icons';
 
 // Check Mark Icon
 const CheckCircleIcon = ({ className = "w-5 h-5" }) => (
@@ -58,9 +70,24 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (tour.length > 0) {
+      setSelectedPOI(tour[currentIndex] || tour[0]);
+    }
+  }, [tour, currentIndex]);
+
   if (loading) return <Loading fullScreen text="Đang khởi tạo GPS..." />;
 
   const currentPOI = tour[currentIndex];
+  const selectPOIByIndex = (idx) => {
+    if (idx < 0 || idx >= tour.length) return;
+    const poi = tour[idx];
+    setCurrentIndex(idx);
+    setSelectedPOI(poi);
+    setShowFloatDetail(true);
+    onPOIChange && onPOIChange(poi);
+  };
+
 
   const handleNext = () => {
     if (currentIndex < tour.length - 1) {
@@ -115,17 +142,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
   const tourDistance = '1.2 km';
   const progress = ((currentIndex + 1) / tour.length) * 100;
 
-  const getPoiIcon = (category) => {
-    const iconMap = {
-      'Phở': '🍜',
-      'Bánh Mì': '🥖',
-      'Cơm Tấm': '🍚',
-      'Café': '☕',
-      'Cafe': '☕',
-      'Chè': '🍧',
-    };
-    return iconMap[category] || '🍽️';
-  };
+  const getPoiIcon = () => <NoodleBowlIcon className="w-10 h-10 text-[#333333]" />;
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] flex flex-col">
@@ -134,7 +151,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🍽️</span>
+              <NoodleBowlIcon className="w-7 h-7 text-[#212121]" />
               <h1 className="text-xl md:text-2xl font-bold text-[#000000]">{tour.length > 0 ? tour[0]?.tourName || 'Tour Ẩm Thực Truyền Thống' : 'Tour'}</h1>
             </div>
             <div className="text-right">
@@ -156,7 +173,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
       {/* Warning Banner */}
       {isOffRoute && (
         <div className="bg-[#FFC107] text-[#000000] px-4 py-3 flex items-center gap-3 border-l-4 border-[#FFB300] z-20">
-          <span className="text-xl">⚠️</span>
+          <WarningIcon className="w-5 h-5" />
           <span className="font-semibold text-sm md:text-base">Bạn đang đi sai hướng. Quay lại POI hiện tại!</span>
         </div>
       )}
@@ -164,7 +181,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
       {/* Success Banner */}
       {isNearPOI && (
         <div className="bg-[#28A745] text-white px-4 py-3 flex items-center gap-3 border-l-4 border-[#20c997] z-20 animate-pulse">
-          <span className="text-xl">✓</span>
+          <CheckIcon className="w-5 h-5" />
           <span className="font-semibold text-sm md:text-base">Bạn đã gần tới POI này! Nhấn "Đánh dấu đã đến"</span>
         </div>
       )}
@@ -179,46 +196,59 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
               <MapComponent
                 pois={tour}
                 userLocation={userLocation}
-                route={tour}
+                routeTarget={selectedPOI || currentPOI}
                 currentPOIIndex={currentIndex}
+                selectedPOIId={(selectedPOI || currentPOI)?.id || null}
+                dimNonSelected
                 onPOISelect={(poi) => {
                   const index = tour.findIndex(p => p.id === poi.id);
                   if (index !== -1) {
-                    setCurrentIndex(index);
-                    setSelectedPOI(poi);
-                    setShowFloatDetail(true);
+                    selectPOIByIndex(index);
                   }
                 }}
               />
             </div>
 
             {/* POI List Sidebar - 1 column on desktop */}
-            <div className="hidden lg:block bg-[#F5F5F5] rounded-lg shadow-lg p-4 h-fit sticky top-24 border border-[#DDDDDD]">
-              <h3 className="font-bold text-[#000000] mb-3 text-sm">📍 Danh sách POI</h3>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="hidden lg:flex flex-col bg-[#F5F5F5] rounded-lg shadow-lg p-4 sticky top-24 border border-[#DDDDDD] max-h-[calc(100vh-7rem)] min-h-0">
+              <h3 className="font-bold text-[#000000] mb-3 text-sm flex items-center gap-2"><MapPinIcon className="w-4 h-4" /> Danh sách POI</h3>
+              <div className="space-y-2 overflow-y-auto overscroll-contain pr-1 flex-1 min-h-0">
                 {tour.map((poi, idx) => (
                   <button
                     key={idx}
-                    onClick={() => {
-                      setCurrentIndex(idx);
-                      setSelectedPOI(poi);
-                      setShowFloatDetail(true);
-                    }}
-                    className={`w-full text-left p-2 rounded-lg transition text-xs md:text-sm ${
+                    onClick={() => selectPOIByIndex(idx)}
+                    className={`w-full text-left p-2 rounded-lg transition-all duration-200 text-xs md:text-sm border-l-4 ${
                       idx === currentIndex
-                        ? 'bg-[#333333] text-white shadow-md'
+                        ? 'bg-[#212121]/10 border-l-[#212121] text-[#111111] shadow-md scale-[1.01]'
                         : visitedPOIs.has(poi.id)
-                        ? 'bg-[#28A745]/20 border-l-4 border-[#28A745] text-[#212121]'
-                        : 'bg-[#EAEAEA] hover:bg-[#DDDDDD] text-[#212121]'
+                        ? 'bg-[#28A745]/15 border-l-[#28A745] text-[#212121]'
+                        : 'bg-[#EAEAEA] border-l-transparent hover:bg-[#DDDDDD] text-[#212121]'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-lg w-6 h-6 flex items-center justify-center rounded-full bg-[#333333] text-white">
+                      <span className={`font-bold text-lg w-6 h-6 flex items-center justify-center rounded-full text-white ${
+                        idx === currentIndex ? 'bg-[#111111]' : 'bg-[#333333]'
+                      }`}>
                         {idx + 1}
                       </span>
+                      <img
+                        src={poi.image || '/placeholder.jpg'}
+                        alt={poi.name}
+                        className="w-10 h-10 rounded-md object-cover flex-shrink-0 border border-gray-200"
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold truncate">{poi.name}</div>
                         <div className="opacity-75 text-xs text-[#757575]">{poi.category}</div>
+                        {userLocation && (
+                          <div className="text-[11px] text-[#444444] mt-0.5">
+                            {calculateDistance(
+                              userLocation.lat,
+                              userLocation.lng,
+                              poi.location.lat,
+                              poi.location.lng
+                            ).toFixed(2)} km
+                          </div>
+                        )}
                       </div>
                       {visitedPOIs.has(poi.id) && <CheckCircleIcon className="w-4 h-4 text-[#28A745] flex-shrink-0" />}
                     </div>
@@ -243,8 +273,8 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
               {/* Quick Info */}
               <div className="flex flex-wrap gap-3 text-xs md:text-sm">
                 <span className="font-semibold text-[#333333]">{distanceToPOI !== null ? `${(distanceToPOI * 1000).toFixed(0)}m` : 'Đang tính'}</span>
-                <span className="text-[#FFC107]">⭐ {currentPOI.rating}</span>
-                <span className="text-[#757575]">💰 {currentPOI.price}</span>
+                <span className="text-[#FFC107] inline-flex items-center gap-1"><StarIcon className="w-4 h-4" /> {currentPOI.rating}</span>
+                <span className="text-[#757575] inline-flex items-center gap-1"><PriceIcon className="w-4 h-4" /> {currentPOI.price}</span>
               </div>
             </div>
           </div>
@@ -268,7 +298,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
             <div className="mb-4 p-4 bg-[#EAEAEA] rounded-lg space-y-3 text-sm border border-[#DDDDDD]">
               {currentPOI.address && (
                 <div className="flex gap-2">
-                  <span>📍</span>
+                  <MapPinIcon className="w-4 h-4 mt-0.5 text-[#212121]" />
                   <div>
                     <p className="text-xs text-[#757575] font-semibold">Địa chỉ</p>
                     <p className="text-[#212121]">{currentPOI.address}</p>
@@ -277,7 +307,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
               )}
               {currentPOI.hours && (
                 <div className="flex gap-2">
-                  <span>🕐</span>
+                  <ClockIcon className="w-4 h-4 mt-0.5 text-[#212121]" />
                   <div>
                     <p className="text-xs text-[#757575] font-semibold">Giờ mở cửa</p>
                     <p className="text-[#212121]">{currentPOI.hours}</p>
@@ -286,7 +316,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
               )}
               {currentPOI.phone && (
                 <div className="flex gap-2">
-                  <span>📞</span>
+                  <LocationIcon className="w-4 h-4 mt-0.5 text-[#212121]" />
                   <div>
                     <p className="text-xs text-[#757575] font-semibold">Điện thoại</p>
                     <p className="text-[#212121]">{currentPOI.phone}</p>
@@ -303,7 +333,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
               disabled={currentIndex === 0}
               className="py-2 px-3 bg-[#EAEAEA] text-[#212121] rounded-lg font-semibold text-sm hover:bg-[#DDDDDD] transition disabled:opacity-50 disabled:cursor-not-allowed border border-[#DDDDDD]"
             >
-              ← Quay lại
+              <span className="inline-flex items-center gap-1"><ArrowLeftIcon className="w-4 h-4" />Quay lại</span>
             </button>
             
             <button
@@ -325,7 +355,7 @@ export default function TourMode({ tour, onComplete, onPOIChange }) {
               onClick={handleNext}
               className="py-2 px-3 bg-[#333333] text-white rounded-lg font-semibold text-sm hover:bg-[#444444] transition"
             >
-              {currentIndex === tour.length - 1 ? 'Hoàn thành' : 'Tiếp'}
+              <span className="inline-flex items-center gap-1">{currentIndex === tour.length - 1 ? 'Hoàn thành' : 'Tiếp'}<ArrowRightIcon className="w-4 h-4" /></span>
             </button>
           </div>
         </div>

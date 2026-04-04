@@ -3,24 +3,25 @@ import { useRouter } from 'next/router';
 import Navbar from '../../components/common/Navbar';
 import MapComponent from '../../components/map/MapComponent';
 import Loading from '../../components/common/Loading';
+import { useLanguage } from '../../utils/i18n/LanguageContext';
+import NarrationBlock from '../../components/poi/NarrationBlock';
 import { 
   ClockIcon, 
   LocationIcon, 
   PriceIcon, 
-  HeadphoneIcon, 
   DirectionIcon, 
   PlusIcon, 
-  PlayIcon, 
-  PauseIcon, 
   ChatIcon, 
   StarIcon,
-  MapPinIcon 
+  MapPinIcon,
+  CloseIcon
 } from '../../components/common/Icons';
 import { mockPOIs } from '../../utils/api/mockData';
 
 
 export default function MapPage() {
   const router = useRouter();
+  const { t, language } = useLanguage();
   const [pois, setPOIs] = useState([]);
   const [filteredPOIs, setFilteredPOIs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,12 +32,18 @@ export default function MapPage() {
   const [selectedPoi, setSelectedPoi] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [route, setRoute] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
-  const [chatMessages, setChatMessages] = useState([
-    { from: 'bot', text: 'Xin chào! Tôi là trợ lý ẩm thực Vĩnh Khánh. Hãy hỏi tôi về quán ăn hoặc món ngon.' },
-  ]);
+  const [chatMessages, setChatMessages] = useState([{ from: 'bot', text: t('map_chat_greeting') }]);
+
+  useEffect(() => {
+    setChatMessages((prev) => {
+      if (prev.length === 1 && prev[0].from === 'bot') {
+        return [{ from: 'bot', text: t('map_chat_greeting') }];
+      }
+      return prev;
+    });
+  }, [language, t]);
 
   useEffect(() => {
     const userEmail = localStorage.getItem('userEmail');
@@ -91,7 +98,7 @@ export default function MapPage() {
     setTimeout(() => {
       setChatMessages((prev) => [
         ...prev,
-        { from: 'bot', text: 'Cảm ơn bạn đã hỏi! Đây là phản hồi mẫu.' },
+        { from: 'bot', text: t('map_sample_reply') },
       ]);
     }, 600);
   };
@@ -110,14 +117,6 @@ export default function MapPage() {
     return (R * c).toFixed(2);
   };
 
-  const handlePlayAudio = () => {
-    setIsPlayingAudio(!isPlayingAudio);
-    // Placeholder for audio functionality
-    if (!isPlayingAudio) {
-      console.log('Playing audio guide for:', selectedPoi?.name);
-    }
-  };
-
   const handleGetDirections = () => {
     if (selectedPoi && userLocation) {
       const distance = calculateDistance(
@@ -131,7 +130,7 @@ export default function MapPage() {
       setRoute([{
         id: 'user-location',
         location: userLocation,
-        name: 'Vị trí của bạn'
+        name: t('map_your_location')
       }, selectedPoi]);
       
       // Store route info for display
@@ -147,7 +146,7 @@ export default function MapPage() {
   };
 
   const handleAddToTour = () => {
-    alert(`Đã thêm "${selectedPoi.name}" vào tour!`);
+    alert(t('map_added_to_tour', { name: selectedPoi.name }));
     // Implement tour functionality
   };
 
@@ -176,9 +175,9 @@ export default function MapPage() {
                   type="search"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Tìm kiếm POI..."
+                  placeholder={t('map_search_placeholder')}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  aria-label="Tìm kiếm POI"
+                  aria-label={t('map_search_placeholder')}
                 />
               </div>
               <div className="flex gap-3 w-full md:w-auto">
@@ -186,13 +185,13 @@ export default function MapPage() {
                   className={`px-5 py-2 rounded-lg font-semibold text-sm shadow-sm ${activeTab === 'explore' ? 'bg-black text-white' : 'bg-white text-gray-700 border border-gray-300'}`}
                   onClick={handleExplore}
                 >
-                  Khám phá
+                  {t('nav_explore')}
                 </button>
                 <button
                   className={`px-5 py-2 rounded-lg font-semibold text-sm shadow-sm ${activeTab === 'tour' ? 'bg-black text-white' : 'bg-white text-gray-700 border border-gray-300'}`}
                   onClick={handleTour}
                 >
-                  Tour
+                  {t('nav_tour')}
                 </button>
               </div>
             </div>
@@ -204,7 +203,7 @@ export default function MapPage() {
                 onClick={() => setShowPoiSheet((prev) => !prev)}
               >
                 <MapPinIcon className="w-4 h-4" />
-                {filteredPOIs.length} địa điểm
+                {t('map_locations_count', { count: filteredPOIs.length })}
               </button>
               <button
                 onClick={handleTour}
@@ -213,7 +212,7 @@ export default function MapPage() {
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
                 </svg>
-                Chuyển sang Tour
+                {t('map_switch_to_tour')}
               </button>
             </div>
           </div>
@@ -225,6 +224,7 @@ export default function MapPage() {
               onPOISelect={handlePoiSelect}
               loading={false}
               route={route}
+              highlightedPOI={selectedPoi}
             />
             
             {/* Route Info Panel - Show when route is active */}
@@ -232,29 +232,29 @@ export default function MapPage() {
               <div className="absolute bottom-4 left-4 right-4 max-w-sm bg-[#FFFFFF] rounded-lg shadow-lg border border-[#DDDDDD] p-4 z-50">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="font-bold text-[#212121] text-sm mb-1">🗺️ Chỉ đường tới</h3>
+                    <h3 className="font-bold text-[#212121] text-sm mb-1 inline-flex items-center gap-1"><MapPinIcon className="w-4 h-4" /> {t('map_route_to')}</h3>
                     <p className="text-lg font-bold text-[#333333]">{routeInfo.destination}</p>
                   </div>
                   <button
                     onClick={handleClearRoute}
                     className="text-[#757575] hover:text-[#212121] text-xl font-bold"
                   >
-                    ×
+                    <CloseIcon className="w-5 h-5" />
                   </button>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div className="bg-[#EAEAEA] rounded p-2">
-                    <p className="text-[#757575] text-xs font-semibold">Khoảng cách</p>
+                    <p className="text-[#757575] text-xs font-semibold">{t('map_distance')}</p>
                     <p className="text-[#333333] font-bold">{routeInfo.distance} km</p>
                   </div>
                   <div className="bg-[#EAEAEA] rounded p-2">
-                    <p className="text-[#757575] text-xs font-semibold">Thời gian</p>
-                    <p className="text-[#333333] font-bold">~{routeInfo.estimatedTime} phút</p>
+                    <p className="text-[#757575] text-xs font-semibold">{t('map_duration')}</p>
+                    <p className="text-[#333333] font-bold">~{routeInfo.estimatedTime} {t('map_minutes')}</p>
                   </div>
                 </div>
                 
-                <p className="text-xs text-[#757575] text-center">Đường được tính toán bằng OSRM</p>
+                <p className="text-xs text-[#757575] text-center">{t('map_route_computed')}</p>
               </div>
             )}
           </div>
@@ -266,21 +266,25 @@ export default function MapPage() {
           >
             <div className="mx-4 mb-4 bg-[#FFFFFF] rounded-t-2xl shadow-xl border border-[#DDDDDD] overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-[#DDDDDD]">
-                  <h2 className="font-bold text-lg text-[#212121]">Danh sách địa điểm</h2>
-                  <button onClick={() => setShowPoiSheet(false)} className="text-xl font-bold">×</button>
+                  <h2 className="font-bold text-lg text-[#212121]">{t('map_poi_list')}</h2>
+                  <button onClick={() => setShowPoiSheet(false)} className="text-xl font-bold"><CloseIcon className="w-5 h-5" /></button>
                 </div>
                 <div className="max-h-[42vh] overflow-y-auto p-4 space-y-3">
                   {filteredPOIs.length === 0 ? (
-                    <p className="text-[#757575]">Không tìm thấy POI phù hợp.</p>
+                    <p className="text-[#757575]">{t('map_no_poi')}</p>
                   ) : (
                     filteredPOIs.map((poi) => (
                       <button
                         key={poi.id}
                         onClick={() => handlePoiSelect(poi)}
-                        className="w-full text-left p-3 rounded-lg border border-[#DDDDDD] hover:bg-[#EAEAEA] transition"
+                        className={`w-full text-left p-3 rounded-lg border transition ${
+                          selectedPoi && selectedPoi.id === poi.id
+                            ? 'bg-[#FFF8DC] border-[#FFD700] shadow-md'
+                            : 'border-[#DDDDDD] hover:bg-[#EAEAEA]'
+                        }`}
                       >
                         <div className="flex items-start gap-3">
-                          <span className="text-2xl">{poi.category === 'Phở' ? '🍜' : poi.category === 'Bánh Mì' ? '🥖' : poi.category === 'Cơm Tấm' ? '🍚' : poi.category.includes('Cafe') ? '☕' : '🍧'}</span>
+                          <MapPinIcon className="w-6 h-6 text-[#333333]" />
                           <div className="flex-1">
                             <h3 className="font-semibold text-base text-[#212121]">{poi.name}</h3>
                             <p className="text-sm text-[#757575] mt-1">{poi.description}</p>
@@ -307,8 +311,8 @@ export default function MapPage() {
               <div className="w-full max-w-md bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#DDDDDD] flex flex-col max-h-[90vh]">
                 {/* Header with close button - Fixed */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[#DDDDDD] bg-gradient-to-r from-[#F5F5F5] to-[#EAEAEA] flex-shrink-0">
-                  <h2 className="text-lg font-bold text-[#212121]">Chi tiết địa điểm</h2>
-                  <button onClick={() => setSelectedPoi(null)} className="text-2xl font-bold text-[#757575] hover:text-[#212121]">×</button>
+                  <h2 className="text-lg font-bold text-[#212121]">{t('map_poi_detail')}</h2>
+                  <button onClick={() => setSelectedPoi(null)} className="text-2xl font-bold text-[#757575] hover:text-[#212121]"><CloseIcon className="w-6 h-6" /></button>
                 </div>
 
                 {/* Scrollable Content */}
@@ -337,7 +341,7 @@ export default function MapPage() {
                         <StarIcon className="w-5 h-5 text-[#FFC107]" />
                         <span className="font-bold text-[#212121]">{selectedPoi.rating.toFixed(1)}</span>
                       </div>
-                      <span className="text-sm text-[#757575]">({Math.floor(Math.random() * 5000) + 1000} đánh giá)</span>
+                      <span className="text-sm text-[#757575]">({Math.floor(Math.random() * 5000) + 1000} {t('map_reviews')})</span>
                     </div>
                   </div>
 
@@ -350,7 +354,7 @@ export default function MapPage() {
                   <div className="flex items-start gap-3 bg-[#EAEAEA] rounded-lg p-3">
                     <ClockIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-600 font-semibold">Giờ mở cửa</p>
+                      <p className="text-xs text-gray-600 font-semibold">{t('poi_hours')}</p>
                       <p className="text-sm text-gray-800 font-medium">{selectedPoi.hours || '6:00 - 22:00'}</p>
                     </div>
                   </div>
@@ -360,7 +364,7 @@ export default function MapPage() {
                     <div className="flex items-start gap-3 bg-green-50 rounded-lg p-3">
                       <LocationIcon className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="text-xs text-gray-600 font-semibold">Khoảng cách</p>
+                        <p className="text-xs text-gray-600 font-semibold">{t('map_distance')}</p>
                         <p className="text-sm text-gray-800 font-medium">
                           {calculateDistance(
                             userLocation.lat,
@@ -377,7 +381,7 @@ export default function MapPage() {
                   <div className="flex items-start gap-3 bg-purple-50 rounded-lg p-3">
                     <PriceIcon className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-600 font-semibold">Giá</p>
+                      <p className="text-xs text-gray-600 font-semibold">{t('poi_price')}</p>
                       <p className="text-sm text-gray-800 font-medium">{selectedPoi.price || '$$'}</p>
                     </div>
                   </div>
@@ -387,39 +391,23 @@ export default function MapPage() {
                     <div className="space-y-2">
                       {selectedPoi.address && (
                         <div className="flex items-start gap-3">
-                          <span className="text-sm text-gray-600 font-semibold min-w-16">Địa chỉ:</span>
+                          <span className="text-sm text-gray-600 font-semibold min-w-16">{t('map_address')}:</span>
                           <span className="text-sm text-gray-800">{selectedPoi.address}</span>
                         </div>
                       )}
                       {selectedPoi.phone && (
                         <div className="flex items-start gap-3">
-                          <span className="text-sm text-gray-600 font-semibold min-w-16">Điện thoại:</span>
+                          <span className="text-sm text-gray-600 font-semibold min-w-16">{t('map_phone')}:</span>
                           <span className="text-sm text-gray-800">{selectedPoi.phone}</span>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* Audio Guide */}
-                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-                        <HeadphoneIcon className="w-5 h-5 text-yellow-600" />
-                        Hướng dẫn bằng giọng nói
-                      </h4>
-                    </div>
-                    <div className="w-full bg-gray-300 rounded-full h-1 mb-3">
-                      <div className="bg-yellow-500 h-1 rounded-full" style={{ width: '35%' }}></div>
-                    </div>
-                    <p className="text-xs text-gray-600 mb-3">Hướng dẫn âm thanh chi tiết về nhà hàng này</p>
-                    <button
-                      onClick={handlePlayAudio}
-                      className="w-full px-4 py-2 bg-yellow-500 text-white rounded-lg font-semibold hover:bg-yellow-600 transition text-sm flex items-center justify-center gap-2"
-                    >
-                      {isPlayingAudio ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
-                      {isPlayingAudio ? 'Tạm dừng' : 'Phát âm thanh'}
-                    </button>
-                  </div>
+                  <NarrationBlock
+                    narration={selectedPoi.narration}
+                    deviceLanguage={language}
+                  />
 
                   {/* Action Buttons */}
                   <div className="grid grid-cols-2 gap-3 pt-3">
@@ -428,14 +416,14 @@ export default function MapPage() {
                       className="px-4 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition flex items-center justify-center gap-2 text-sm"
                     >
                       <DirectionIcon className="w-5 h-5" />
-                      Chỉ đường
+                      {t('map_directions')}
                     </button>
                     <button
                       onClick={handleAddToTour}
                       className="px-4 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition flex items-center justify-center gap-2 text-sm"
                     >
                       <PlusIcon className="w-5 h-5" />
-                      Thêm Tour
+                      {t('map_add_tour')}
                     </button>
                   </div>
                 </div>
@@ -456,10 +444,10 @@ export default function MapPage() {
             <div className="fixed bottom-24 right-4 z-[9999] w-[340px] bg-white rounded-xl border border-gray-200 shadow-2xl overflow-hidden">
               <div className="bg-blue-600 text-white p-3 flex items-center justify-between">
                 <div>
-                  <p className="font-bold">Trợ lý ẩm thực</p>
-                  <p className="text-xs opacity-80">Hỗ trợ hỏi đáp nhanh</p>
+                  <p className="font-bold">{t('map_chat_title')}</p>
+                  <p className="text-xs opacity-80">{t('map_chat_subtitle')}</p>
                 </div>
-                <button onClick={() => setShowChat(false)} className="text-white font-bold">×</button>
+                <button onClick={() => setShowChat(false)} className="text-white font-bold"><CloseIcon className="w-5 h-5" /></button>
               </div>
               <div className="h-64 overflow-y-auto p-3 space-y-2 bg-gray-50">
                 {chatMessages.map((msg, idx) => (
@@ -475,12 +463,12 @@ export default function MapPage() {
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Nhập tin nhắn..."
+                  placeholder={t('map_chat_input')}
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
                 />
                 <button onClick={handleSendChat} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold">
-                  Gửi
+                  {t('map_chat_send')}
                 </button>
               </div>
             </div>

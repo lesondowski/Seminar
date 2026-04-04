@@ -22,7 +22,7 @@ export default function handler(req, res) {
 
     // In production, send OTP via email service (SendGrid, Mailgun, etc.)
     // For now, just log it
-    console.log(`📧 OTP for ${email}: ${otp}`);
+    console.log(`OTP for ${email}: ${otp}`);
 
     // You can also store OTP in a cache (Redis) or temporary storage
     // with expiration time of 5 minutes

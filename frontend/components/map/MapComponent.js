@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Loading from '../common/Loading';
 import dynamic from 'next/dynamic';
+import { useLanguage } from '../../utils/i18n/LanguageContext';
 
 // Dynamically import Leaflet components to avoid SSR issues
 const DynamicMapContainer = dynamic(
@@ -33,29 +34,44 @@ const DynamicPolyline = dynamic(
   { ssr: false }
 );
 
-// Custom number icon for POI
-const createNumberIcon = (number) => {
+// Custom number icon for POI with visual states.
+const createPOIIcon = (number, { selected = false, dimmed = false } = {}) => {
   if (typeof window === 'undefined') return null;
   const L = require('leaflet');
+  const size = selected ? 54 : dimmed ? 34 : 40;
+  const fontSize = selected ? 20 : dimmed ? 15 : 18;
+  const gradient = selected
+    ? 'linear-gradient(135deg, #FFD700, #FFA500)'
+    : 'linear-gradient(135deg, #333333, #444444)';
+  const textColor = selected ? '#212121' : 'white';
+  const border = selected ? '4px solid white' : '3px solid #DDDDDD';
+  const opacity = dimmed ? 0.45 : 1;
+  const shadow = selected
+    ? '0 0 20px rgba(255, 215, 0, 0.8), 0 10px 18px rgba(0, 0, 0, 0.45)'
+    : '0 4px 12px rgba(0, 0, 0, 0.3)';
+
   return L.divIcon({
     className: 'custom-poi-marker',
     html: `<div style="
-      background: linear-gradient(135deg, #333333, #444444);
-      color: white;
-      width: 40px;
-      height: 40px;
+      background: ${gradient};
+      color: ${textColor};
+      width: ${size}px;
+      height: ${size}px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: bold;
-      font-size: 18px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      border: 3px solid #DDDDDD;
+      font-size: ${fontSize}px;
+      box-shadow: ${shadow};
+      border: ${border};
+      opacity: ${opacity};
+      transform: scale(${selected ? 1.28 : dimmed ? 0.9 : 1});
+      transition: all 220ms ease;
     ">${number}</div>`,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -20],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
   });
 };
 
@@ -77,7 +93,7 @@ const createUserIcon = () => {
       font-weight: bold;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
       border: 3px solid #DDDDDD;
-    ">📍</div>`,
+    "><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
     popupAnchor: [0, -16],
@@ -85,8 +101,23 @@ const createUserIcon = () => {
 };
 
 // Map component that uses Leaflet
-export default function MapComponent({ onPOISelect, pois = [], loading = false, userLocation = null, route = [], currentPOIIndex = 0 }) {
-  const [mapCenter, setMapCenter] = useState({ lat: 10.796, lng: 106.749 }); // Vĩnh Khánh, Vietnam
+export default function MapComponent({
+  onPOISelect,
+  pois = [],
+  loading = false,
+  userLocation = null,
+  route = [],
+  currentPOIIndex = 0,
+  highlightedPOI = null,
+  selectedPOIId = null,
+  dimNonSelected = false,
+  routeTarget = null,
+  initialCenter = null,
+  disableAutoLocate = false,
+  showUserMarker = true,
+}) {
+  const { t } = useLanguage();
+  const [mapCenter, setMapCenter] = useState(initialCenter || { lat: 10.796, lng: 106.749 }); // Vĩnh Khánh, Vietnam
   const [userPos, setUserPos] = useState(null);
   const [routeCoords, setRouteCoords] = useState([]); // Actual route coordinates from OSRM
   const mapRef = useRef(null);
@@ -96,8 +127,19 @@ export default function MapComponent({ onPOISelect, pois = [], loading = false, 
     setIsClient(true);
   }, []);
 
+  useEffect(() => {
+    if (initialCenter) {
+      setMapCenter(initialCenter);
+    }
+  }, [initialCenter]);
+
   // Get user location
   useEffect(() => {
+    if (disableAutoLocate) {
+      if (userLocation) setUserPos(userLocation);
+      return;
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -116,20 +158,20 @@ export default function MapComponent({ onPOISelect, pois = [], loading = false, 
     }
   }, []);
 
-  // Fetch actual route from OSRM when route changes
+  // Fetch actual route from OSRM when selected route target changes
   useEffect(() => {
-    if (route.length > 1) {
-      fetchActualRoute(route);
+    if (routeTarget && userPos) {
+      fetchRouteFromUserToPOI(userPos, routeTarget);
+    } else {
+      setRouteCoords([]);
     }
-  }, [route]);
+  }, [routeTarget, userPos]);
 
   // Fetch route from OSRM (Open Source Routing Machine)
-  const fetchActualRoute = async (routePOIs) => {
+  const fetchRouteFromUserToPOI = async (fromPos, targetPOI) => {
     try {
-      // Build coordinates string for OSRM: lng,lat;lng,lat;...
-      const coordinates = routePOIs
-        .map(poi => `${poi.location.lng},${poi.location.lat}`)
-        .join(';');
+      // Build coordinates string for OSRM: user(lng,lat);poi(lng,lat)
+      const coordinates = `${fromPos.lng},${fromPos.lat};${targetPOI.location.lng},${targetPOI.location.lat}`;
 
       // Call OSRM API
       const response = await fetch(
@@ -148,18 +190,21 @@ export default function MapComponent({ onPOISelect, pois = [], loading = false, 
     } catch (error) {
       console.error('Error fetching route:', error);
       // Fallback to straight line if OSRM fails
-      const fallbackCoords = routePOIs.map(poi => [poi.location.lat, poi.location.lng]);
+      const fallbackCoords = [
+        [fromPos.lat, fromPos.lng],
+        [targetPOI.location.lat, targetPOI.location.lng],
+      ];
       setRouteCoords(fallbackCoords);
     }
   };
 
-  if (loading) return <Loading fullScreen text="Đang tải bản đồ..." />;
+  if (loading) return <Loading fullScreen text={t('home_map_loading')} />;
 
   // Fallback for non-client rendering
   if (!isClient) {
     return (
       <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-lg">
-        <p className="text-gray-500">Đang tải bản đồ...</p>
+        <p className="text-gray-500">{t('home_map_loading')}</p>
       </div>
     );
   }
@@ -181,19 +226,18 @@ export default function MapComponent({ onPOISelect, pois = [], loading = false, 
         {routeCoords.length > 1 && (
           <DynamicPolyline
             positions={routeCoords}
-            color="#333333"
-            weight={4}
-            opacity={0.85}
-            dashArray="8, 4"
+            color="#111111"
+            weight={5}
+            opacity={0.95}
           />
         )}
 
         {/* User location marker */}
-        {userPos && (
+        {showUserMarker && userPos && (
           <DynamicMarker position={[userPos.lat, userPos.lng]} icon={createUserIcon()}>
             <DynamicPopup>
               <div className="text-center">
-                <p className="font-bold">📍 Vị trí của bạn</p>
+                <p className="font-bold">{t('map_your_location')}</p>
               </div>
             </DynamicPopup>
           </DynamicMarker>
@@ -201,25 +245,30 @@ export default function MapComponent({ onPOISelect, pois = [], loading = false, 
 
         {/* POI markers */}
         {pois.length > 0 &&
-          pois.map((poi, index) => (
-            <DynamicMarker
-              key={poi.id}
-              position={[poi.location.lat, poi.location.lng]}
-              icon={createNumberIcon(index + 1)}
-              eventHandlers={{
-                click: () => {
-                  onPOISelect && onPOISelect(poi);
-                },
-              }}
-            >
-              <DynamicPopup>
-                <div className="text-center">
-                  <p className="font-bold">{index + 1}. {poi.name}</p>
-                  <p className="text-sm text-gray-600">{poi.category}</p>
-                </div>
-              </DynamicPopup>
-            </DynamicMarker>
-          ))}
+          pois.map((poi, index) => {
+            const activePOIId = selectedPOIId || highlightedPOI?.id;
+            const isHighlighted = !!activePOIId && activePOIId === poi.id;
+            const shouldDim = dimNonSelected && !!activePOIId && activePOIId !== poi.id;
+            return (
+              <DynamicMarker
+                key={`${poi.id}-${isHighlighted ? 'highlighted' : shouldDim ? 'dimmed' : 'default'}`}
+                position={[poi.location.lat, poi.location.lng]}
+                icon={createPOIIcon(index + 1, { selected: isHighlighted, dimmed: shouldDim })}
+                eventHandlers={{
+                  click: () => {
+                    onPOISelect && onPOISelect(poi);
+                  },
+                }}
+              >
+                <DynamicPopup>
+                  <div className="text-center">
+                    <p className="font-bold">{index + 1}. {poi.name}</p>
+                    <p className="text-sm text-gray-600">{poi.category}</p>
+                  </div>
+                </DynamicPopup>
+              </DynamicMarker>
+            );
+          })}
 
         <DynamicZoomControl position="bottomright" />
       </DynamicMapContainer>

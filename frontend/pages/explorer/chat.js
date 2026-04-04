@@ -6,6 +6,18 @@ import ChatbotComponent from '../../components/chatbot/ChatbotComponent';
 import Loading from '../../components/common/Loading';
 import Button from '../../components/common/Button';
 import { mockPOIs } from '../../utils/api/mockData';
+import {
+  ExploreIcon,
+  TicketIcon,
+  MenuIcon,
+  StarIcon,
+  CloseIcon,
+  AudioIcon,
+  PlayIcon,
+  DirectionIcon,
+  NoodleBowlIcon,
+  ChatIcon,
+} from '../../components/common/Icons';
 
 export default function ChatPage() {
   const router = useRouter();
@@ -80,7 +92,7 @@ export default function ChatPage() {
                       : 'bg-[#FFFFFF] text-[#212121] border border-[#DDDDDD] hover:bg-[#F5F5F5]'
                   }`}
                 >
-                  🗺️ Khám phá
+                  <span className="inline-flex items-center gap-2 justify-center"><ExploreIcon className="w-4 h-4" />Khám phá</span>
                 </button>
                 <button
                   onClick={() => {
@@ -93,7 +105,7 @@ export default function ChatPage() {
                       : 'bg-[#FFFFFF] text-[#212121] border border-[#DDDDDD] hover:bg-[#F5F5F5]'
                   }`}
                 >
-                  🎫 Tour
+                  <span className="inline-flex items-center gap-2 justify-center"><TicketIcon className="w-4 h-4" />Tour</span>
                 </button>
               </div>
             </div>
@@ -115,7 +127,7 @@ export default function ChatPage() {
                   onClick={() => setShowPOIList(!showPOIList)}
                   className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-black text-white px-4 py-2 rounded-full shadow-lg hover:bg-gray-900 transition flex items-center gap-2 font-semibold"
                 >
-                  ☰ {filteredPOIs.length} địa điểm
+                  <span className="inline-flex items-center gap-2"><MenuIcon className="w-4 h-4" />{filteredPOIs.length} địa điểm</span>
                 </button>
               </div>
 
@@ -129,7 +141,7 @@ export default function ChatPage() {
                         <div>
                           <h2 className="text-2xl font-bold">{selectedPOI.name}</h2>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-lg">⭐ {selectedPOI.rating}</span>
+                            <span className="text-lg inline-flex items-center gap-1"><StarIcon className="w-4 h-4" /> {selectedPOI.rating}</span>
                             <span className="text-sm opacity-75">1234 lượt xem</span>
                           </div>
                         </div>
@@ -137,7 +149,7 @@ export default function ChatPage() {
                           onClick={() => setSelectedPOI(null)}
                           className="text-white hover:opacity-75 text-xl"
                         >
-                          ✕
+                          <CloseIcon className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
@@ -179,9 +191,9 @@ export default function ChatPage() {
                       {/* Audio Guide */}
                       <div className="bg-gray-50 p-3 rounded">
                         <div className="flex justify-between items-center">
-                          <h3 className="font-bold text-sm">🔊 Audio Guide</h3>
+                          <h3 className="font-bold text-sm inline-flex items-center gap-1"><AudioIcon className="w-4 h-4" /> Audio Guide</h3>
                           <button className="text-blue-600 hover:text-blue-800 text-sm font-semibold">
-                            ▶️ Phát audio
+                            <span className="inline-flex items-center gap-1"><PlayIcon className="w-4 h-4" /> Phát audio</span>
                           </button>
                         </div>
                       </div>
@@ -189,7 +201,7 @@ export default function ChatPage() {
                       {/* Buttons */}
                       <div className="flex gap-2">
                         <Button variant="secondary" className="flex-1 text-sm">
-                          🧭 Chỉ đường
+                          <span className="inline-flex items-center gap-1"><DirectionIcon className="w-4 h-4" /> Chỉ đường</span>
                         </Button>
                         <Button variant="primary" className="flex-1 text-sm">
                           + Thêm vào Tour
@@ -199,7 +211,7 @@ export default function ChatPage() {
                   </div>
                 ) : (
                   <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-                    <div className="text-4xl mb-4">👆</div>
+                    <div className="flex justify-center mb-4"><DirectionIcon className="w-10 h-10 text-gray-400" /></div>
                     <p className="text-gray-600">Chọn một quán ăn trên bản đồ để xem chi tiết</p>
                   </div>
                 )}
@@ -216,7 +228,7 @@ export default function ChatPage() {
                       onClick={() => setShowPOIList(false)}
                       className="text-gray-500 hover:text-gray-700 text-2xl"
                     >
-                      ✕
+                      <CloseIcon className="w-6 h-6" />
                     </button>
                   </div>
                   <div className="space-y-3">
@@ -230,12 +242,12 @@ export default function ChatPage() {
                         className="p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition"
                       >
                         <div className="flex items-start gap-2">
-                          <span className="text-2xl">{poi.category === 'Bánh Mì' ? '🍞' : poi.category === 'Phở' ? '🍜' : '☕'}</span>
+                          <NoodleBowlIcon className="w-7 h-7 text-[#374151]" />
                           <div className="flex-1">
                             <h3 className="font-semibold text-gray-800">{poi.name}</h3>
                             <p className="text-xs text-gray-600">{poi.description.substring(0, 40)}...</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-sm">⭐ {poi.rating}</span>
+                              <span className="text-sm inline-flex items-center gap-1"><StarIcon className="w-4 h-4" /> {poi.rating}</span>
                               <span className="text-sm text-gray-500">$ {poi.price}</span>
                             </div>
                           </div>
@@ -255,19 +267,19 @@ export default function ChatPage() {
           className="fixed bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-2xl hover:bg-gray-900 transition flex items-center justify-center text-2xl z-50"
           title="Trợ lý ẩm thực"
         >
-          💬
+          <ChatIcon className="w-7 h-7" />
         </button>
 
         {/* Chatbot Modal */}
         {chatbotOpen && (
           <div className="fixed bottom-24 right-6 w-96 max-h-96 bg-white rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col">
             <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-4 flex justify-between items-center">
-              <h3 className="font-bold">🍜 Trợ lý ẩm thực</h3>
+              <h3 className="font-bold inline-flex items-center gap-2"><NoodleBowlIcon className="w-5 h-5" /> Trợ lý ẩm thực</h3>
               <button
                 onClick={() => setChatbotOpen(false)}
                 className="text-white hover:opacity-75"
               >
-                ✕
+                <CloseIcon className="w-5 h-5" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">

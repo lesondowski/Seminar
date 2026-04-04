@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Navbar from '../../components/common/Navbar';
 import { mockPOIs } from '../../utils/api/mockData';
 import Button from '../../components/common/Button';
+import { ArrowLeftIcon, StarIcon } from '../../components/common/Icons';
 
 export default function POIListPage() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function POIListPage() {
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold text-gray-800">Danh sách địa điểm</h1>
             <Button variant="secondary" onClick={() => router.push('/explorer/map')}>
-              ← Quay lại bản đồ
+              <span className="inline-flex items-center gap-1"><ArrowLeftIcon className="w-4 h-4" />Quay lại bản đồ</span>
             </Button>
           </div>
 
@@ -32,7 +33,7 @@ export default function POIListPage() {
                 <div className="p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
                     <h2 className="text-xl font-bold text-gray-800">{poi.name}</h2>
-                    <span className="text-sm text-yellow-500 font-semibold">⭐ {poi.rating}</span>
+                    <span className="text-sm text-yellow-500 font-semibold inline-flex items-center gap-1"><StarIcon className="w-4 h-4" /> {poi.rating}</span>
                   </div>
                   <p className="text-gray-600 text-sm">{poi.description}</p>
                   <div className="flex flex-wrap gap-2 text-xs text-gray-500">

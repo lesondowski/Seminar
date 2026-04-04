@@ -7,12 +7,21 @@ export default function handler(req, res) {
       return res.status(400).json({ error: 'Email không hợp lệ' });
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+    let role = 'visitor';
+
+    if (normalizedEmail === 'admin@gmail.com') {
+      role = 'admin';
+    } else if (normalizedEmail === 'moderator@gmail.com') {
+      role = 'moderator';
+    }
+
     // Simulate successful login
     return res.status(200).json({
       success: true,
       email,
       language: language || 'vi',
-      role: 'visitor', // or 'admin', 'restaurant' based on email
+      role,
     });
   }
 

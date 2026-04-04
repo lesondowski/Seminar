@@ -1,5 +1,6 @@
 import React from 'react';
 import Button from './Button';
+import { CheckIcon, CloseIcon, WarningIcon, InfoIcon } from './Icons';
 
 export default function Modal({ 
   isOpen, 
@@ -20,10 +21,10 @@ export default function Modal({
   };
 
   const typeIcons = {
-    success: '✓',
-    error: '✕',
-    warning: '!',
-    info: 'ⓘ',
+    success: <CheckIcon className="w-7 h-7" />,
+    error: <CloseIcon className="w-7 h-7" />,
+    warning: <WarningIcon className="w-7 h-7" />,
+    info: <InfoIcon className="w-7 h-7" />,
   };
 
   return (
@@ -45,9 +46,9 @@ export default function Modal({
           </div>
           <button 
             onClick={onClose} 
-            className="text-[#757575] hover:text-[#212121] text-2xl font-bold"
+            className="text-[#757575] hover:text-[#212121]"
           >
-            ×
+            <CloseIcon className="w-6 h-6" />
           </button>
         </div>
 
