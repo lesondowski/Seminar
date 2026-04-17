@@ -34,6 +34,11 @@ const DynamicPolyline = dynamic(
   { ssr: false }
 );
 
+const DynamicCircleMarker = dynamic(
+  () => import('react-leaflet').then(mod => mod.CircleMarker),
+  { ssr: false }
+);
+
 // Custom number icon for POI with visual states.
 const createPOIIcon = (number, { selected = false, dimmed = false } = {}) => {
   if (typeof window === 'undefined') return null;
@@ -112,9 +117,15 @@ export default function MapComponent({
   selectedPOIId = null,
   dimNonSelected = false,
   routeTarget = null,
+  externalRouteCoords = null,
+  destinationPOI = null,
+  isRouteAnimating = false,
   initialCenter = null,
   disableAutoLocate = false,
   showUserMarker = true,
+  editableLocation = false,
+  locationPin = null,
+  onLocationPinChange = null,
 }) {
   const { t } = useLanguage();
   const [mapCenter, setMapCenter] = useState(initialCenter || { lat: 10.796, lng: 106.749 }); // Vĩnh Khánh, Vietnam
@@ -132,6 +143,21 @@ export default function MapComponent({
       setMapCenter(initialCenter);
     }
   }, [initialCenter]);
+
+  useEffect(() => {
+    // Keep editor map focused on the current pin so click/drag updates are always visible.
+    if (editableLocation && locationPin?.lat && locationPin?.lng) {
+      setMapCenter({ lat: locationPin.lat, lng: locationPin.lng });
+    }
+  }, [editableLocation, locationPin]);
+
+  useEffect(() => {
+    if (!userLocation) return;
+    setUserPos(userLocation);
+    if (!disableAutoLocate) {
+      setMapCenter(userLocation);
+    }
+  }, [userLocation, disableAutoLocate]);
 
   // Get user location
   useEffect(() => {
@@ -156,9 +182,9 @@ export default function MapComponent({
         }
       );
     }
-  }, []);
+  }, [disableAutoLocate, userLocation]);
 
-  // Fetch actual route from OSRM when selected route target changes
+  // Backward compatibility: fetch route from OSRM when routeTarget is provided.
   useEffect(() => {
     if (routeTarget && userPos) {
       fetchRouteFromUserToPOI(userPos, routeTarget);
@@ -166,6 +192,12 @@ export default function MapComponent({
       setRouteCoords([]);
     }
   }, [routeTarget, userPos]);
+
+  const activeRouteCoords = externalRouteCoords && externalRouteCoords.length > 1
+    ? externalRouteCoords
+    : routeCoords;
+
+  const activeDestination = destinationPOI || routeTarget;
 
   // Fetch route from OSRM (Open Source Routing Machine)
   const fetchRouteFromUserToPOI = async (fromPos, targetPOI) => {
@@ -216,19 +248,48 @@ export default function MapComponent({
         zoom={15}
         style={{ height: '100%', width: '100%' }}
         ref={mapRef}
+        eventHandlers={
+          editableLocation
+            ? {
+                click: (event) => {
+                  const { lat, lng } = event.latlng;
+                  onLocationPinChange && onLocationPinChange({ lat, lng });
+                },
+              }
+            : undefined
+        }
       >
         <DynamicTileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* Actual route polyline - following real roads */}
-        {routeCoords.length > 1 && (
+        {/* Route layer */}
+        {activeRouteCoords.length > 1 && (
           <DynamicPolyline
-            positions={routeCoords}
-            color="#111111"
-            weight={5}
-            opacity={0.95}
+            positions={activeRouteCoords}
+            pathOptions={{
+              color: '#111111',
+              weight: 6,
+              opacity: 0.95,
+              lineCap: 'round',
+              lineJoin: 'round',
+              className: isRouteAnimating ? 'route-polyline route-polyline-animated' : 'route-polyline',
+            }}
+          />
+        )}
+
+        {activeDestination?.location && (
+          <DynamicCircleMarker
+            center={[activeDestination.location.lat, activeDestination.location.lng]}
+            radius={16}
+            pathOptions={{
+              color: '#DC3545',
+              weight: 3,
+              fillColor: '#DC3545',
+              fillOpacity: 0.2,
+              className: 'route-destination-pulse',
+            }}
           />
         )}
 
@@ -269,6 +330,28 @@ export default function MapComponent({
               </DynamicMarker>
             );
           })}
+
+        {/* Location picker marker for admin/moderator POI form */}
+        {editableLocation && locationPin && (
+          <DynamicMarker
+            position={[locationPin.lat, locationPin.lng]}
+            draggable
+            eventHandlers={{
+              dragend: (event) => {
+                const marker = event.target;
+                const next = marker.getLatLng();
+                onLocationPinChange && onLocationPinChange({ lat: next.lat, lng: next.lng });
+              },
+            }}
+          >
+            <DynamicPopup>
+              <div className="text-center">
+                <p className="font-bold">Vi tri quan</p>
+                <p className="text-sm text-gray-600">Keo marker hoac click map de doi vi tri</p>
+              </div>
+            </DynamicPopup>
+          </DynamicMarker>
+        )}
 
         <DynamicZoomControl position="bottomright" />
       </DynamicMapContainer>

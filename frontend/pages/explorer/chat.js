@@ -5,7 +5,7 @@ import MapComponent from '../../components/map/MapComponent';
 import ChatbotComponent from '../../components/chatbot/ChatbotComponent';
 import Loading from '../../components/common/Loading';
 import Button from '../../components/common/Button';
-import { mockPOIs } from '../../utils/api/mockData';
+import { fetchPOIs } from '../../utils/api/poiService';
 import {
   ExploreIcon,
   TicketIcon,
@@ -32,15 +32,17 @@ export default function ChatPage() {
 
   useEffect(() => {
     // Check authentication
-    const userEmail = localStorage.getItem('userEmail');
-    if (!userEmail) {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
       router.push('/auth/login');
       return;
     }
 
-    // Load POIs
-    setPOIs(mockPOIs);
-    setLoading(false);
+    // Load POIs from backend
+    fetchPOIs().then((data) => {
+      setPOIs(Array.isArray(data) ? data : []);
+      setLoading(false);
+    });
 
     // Get user location
     if (navigator.geolocation) {

@@ -1,3 +1,5 @@
+import { apiRequest } from './api/client';
+
 // OTP Utilities
 
 /**
@@ -23,22 +25,10 @@ export const validateOTP = (otp) => {
  * @returns {Promise<object>}
  */
 export const sendOTP = async (email) => {
-  try {
-    const response = await fetch('/api/auth/send-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Không thể gửi OTP');
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
+  return apiRequest('/auth/send-otp', {
+    method: 'POST',
+    body: { email },
+  });
 };
 
 /**
@@ -52,22 +42,10 @@ export const verifyOTP = async (email, otp) => {
     throw new Error('OTP phải có 6 chữ số');
   }
 
-  try {
-    const response = await fetch('/api/auth/verify-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'OTP không chính xác');
-    }
-
-    return await response.json();
-  } catch (error) {
-    throw error;
-  }
+  return apiRequest('/auth/verify-otp', {
+    method: 'POST',
+    body: { email, otp },
+  });
 };
 
 /**

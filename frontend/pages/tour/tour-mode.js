@@ -4,13 +4,14 @@ import Navbar from '../../components/common/Navbar';
 import TourMode from '../../components/map/TourMode';
 import Loading from '../../components/common/Loading';
 import Button from '../../components/common/Button';
-import { mockPOIs, mockTours } from '../../utils/api/mockData';
+import { fetchTours, fetchPOIs } from '../../utils/api/poiService';
 import { MapPinIcon, ArrowRightIcon, ClockIcon } from '../../components/common/Icons';
 import { useTourCart } from '../../utils/tourCart/TourCartContext';
 
 export default function TourModePage() {
   const router = useRouter();
   const { userPOIs, clearAll } = useTourCart();
+  const [allPOIs, setAllPOIs] = useState([]);
   const [tours, setTours] = useState([]);
   const [filteredTours, setFilteredTours] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,16 +23,21 @@ export default function TourModePage() {
 
   useEffect(() => {
     // Check authentication
-    const userEmail = localStorage.getItem('userEmail');
-    if (!userEmail) {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
       router.push('/auth/login');
       return;
     }
 
-    // Load tours and POIs
-    setTours(mockTours);
-    setFilteredTours(mockTours);
-    setLoading(false);
+    // Load tours and POIs from backend
+    Promise.all([fetchTours(), fetchPOIs()]).then(([toursData, poisData]) => {
+      const t = Array.isArray(toursData) ? toursData : [];
+      const p = Array.isArray(poisData) ? poisData : [];
+      setTours(t);
+      setFilteredTours(t);
+      setAllPOIs(p);
+      setLoading(false);
+    });
   }, [router]);
 
   // Filter tours based on search term
@@ -44,9 +50,9 @@ export default function TourModePage() {
   }, [searchTerm, tours]);
 
   const handleSelectTour = (tour) => {
-    // Get POIs for this tour
-    const pois = tour.pois.map((poiId) =>
-      mockPOIs.find((poi) => poi.id === poiId)
+    // Resolve POI IDs to POI objects using fetched POIs
+    const pois = (tour.pois || []).map((poiId) =>
+      allPOIs.find((poi) => poi.id === poiId)
     ).filter(Boolean);
 
     setTourPOIs(pois);

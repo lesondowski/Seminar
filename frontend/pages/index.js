@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Navbar from '../components/common/Navbar';
 import MapComponent from '../components/map/MapComponent';
 import TourCartPanel from '../components/common/TourCartPanel';
-import { mockPOIs } from '../utils/api/mockData';
+import { fetchPOIs } from '../utils/api/poiService';
 import { useLanguage } from '../utils/i18n/LanguageContext';
 import { NoodleBowlIcon, StarIcon } from '../components/common/Icons';
 
@@ -19,18 +19,20 @@ export default function Home() {
 
   useEffect(() => {
     // Kiểm tra xem người dùng đã đăng nhập chưa
-    const userEmail = localStorage.getItem('userEmail');
+    const token = localStorage.getItem('accessToken');
     
-    if (!userEmail) {
+    if (!token) {
       // Nếu chưa đăng nhập, chuyển hướng sang trang login
       router.push('auth/login');
       return;
     }
 
-    // Nếu đã đăng nhập, khởi tạo dữ liệu POI
+    // Nếu đã đăng nhập, tải dữ liệu POI từ backend
     setIsAuthenticated(true);
-    setPOIs(mockPOIs);
-    setLoading(false);
+    fetchPOIs().then((data) => {
+      setPOIs(Array.isArray(data) ? data : []);
+      setLoading(false);
+    });
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {

@@ -1,42 +1,72 @@
-// Login user
-export const loginUser = async (email, language) => {
-  try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, language }),
-    });
+import { apiRequest } from '../api/client';
 
-    if (!response.ok) {
-      throw new Error('Đăng nhập thất bại');
-    }
+const ACCESS_TOKEN_KEY = 'accessToken';
 
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    throw new Error(error.message);
-  }
+export const getAccessToken = () => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || '';
 };
 
-// Get user profile
+export const storeAccessToken = (token) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+};
+
+export const loginUser = async (email, language, otpVerified = true) => {
+  const data = await apiRequest('/auth/login', {
+    method: 'POST',
+    body: {
+      email,
+      language,
+      otp_verified: otpVerified,
+    },
+  });
+
+  if (data?.access_token) {
+    storeAccessToken(data.access_token);
+  }
+
+  return data;
+};
+
 export const getUserProfile = async () => {
+  return apiRequest('/auth/profile', {
+    token: getAccessToken(),
+  });
+};
+
+export const logoutUser = async () => {
+  const token = getAccessToken();
   try {
-    const response = await fetch('/api/auth/profile');
-
-    if (!response.ok) {
-      throw new Error('Không thể lấy thông tin profile');
-    }
-
-    const data = await response.json();
-    return data;
+    await apiRequest('/auth/logout', {
+      method: 'POST',
+      token,
+    });
   } catch (error) {
-    throw new Error(error.message);
+    // Keep client-side sign-out resilient if server session is already gone.
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userLanguage');
+    localStorage.removeItem('userRole');
   }
 };
 
-// Logout user
-export const logoutUser = async () => {
-  localStorage.removeItem('userEmail');
-  localStorage.removeItem('userLanguage');
-  localStorage.removeItem('userRole');
+
+export const adminCreateOrUpdateUser = async ({ email, language = 'vi', role = 'owner' }) => {
+  return apiRequest('/auth/admin/users', {
+    method: 'POST',
+    token: getAccessToken(),
+    body: { email, language, role },
+  });
+};
+
+
+export const adminListUsers = async () => {
+  return apiRequest('/auth/admin/users', {
+    method: 'GET',
+    token: getAccessToken(),
+  });
 };

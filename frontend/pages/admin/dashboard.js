@@ -1,16 +1,21 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Navbar from '../../components/common/Navbar';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Loading from '../../components/common/Loading';
 import MapComponent from '../../components/map/MapComponent';
-import { mockPOIs, mockTours } from '../../utils/api/mockData';
 import LanguageSelector from '../../components/poi/LanguageSelector';
 import AudioPlayer from '../../components/poi/AudioPlayer';
 import TranslateToggle from '../../components/poi/TranslateToggle';
 import TranslationBadge from '../../components/poi/TranslationBadge';
 import { translateNarration } from '../../utils/narration/translateClient';
+import {
+  fetchPOIs, fetchTours, approvePOI, rejectPOI, deletePOI, updatePOI, createPOI,
+  searchAddressSuggestions, reverseGeocodeLocation, uploadPOIImage,
+  createTour, updateTour, deleteTour,
+} from '../../utils/api/poiService';
+import { adminCreateOrUpdateUser, adminListUsers } from '../../utils/auth/authService';
 import {
   PlusIcon, EditIcon, TrashIcon, CopyIcon, GlobeIcon, UploadIcon,
   GripVerticalIcon, RouteIcon, CloseIcon, CheckIcon, WarningIcon,
@@ -25,6 +30,7 @@ const SIDEBAR_ITEMS = [
   { key: 'language', label: 'Language / Content' },
   { key: 'chatbot', label: 'Chatbot Data' },
   { key: 'analytics', label: 'Analytics' },
+  { key: 'users', label: 'User Management' },
   { key: 'settings', label: 'System Settings' },
 ];
 
@@ -34,15 +40,6 @@ const STATUS_STYLES = {
   rejected: 'bg-rose-100 text-rose-700 border-rose-200',
 };
 
-const makeInitialPOIs = () =>
-  mockPOIs.map((poi, idx) => ({
-    ...poi,
-    status: idx % 3 === 0 ? 'pending' : idx % 5 === 0 ? 'rejected' : 'approved',
-    language: (poi.narration?.sourceLanguage || 'vi').toUpperCase(),
-    createdAt: `2026-03-${String((idx % 28) + 1).padStart(2, '0')}`,
-    restaurant: poi.restaurant || `Merchant ${(idx % 4) + 1}`,
-    rejectReason: idx % 5 === 0 ? 'Thiếu nội dung audio' : '',
-  }));
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -61,6 +58,25 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [langTab, setLangTab] = useState('VN');
   const [modal, setModal] = useState({ isOpen: false, type: 'info', title: '', message: '' });
+  const [managedUsers, setManagedUsers] = useState([]);
+  const [userLoading, setUserLoading] = useState(false);
+  const [ownerForm, setOwnerForm] = useState({
+    email: '',
+    language: 'vi',
+    role: 'owner',
+  });
+  const [currentUserRole, setCurrentUserRole] = useState('');
+  const [currentUserEmail, setCurrentUserEmail] = useState('');
+  const [addressQuery, setAddressQuery] = useState('');
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [searchingAddress, setSearchingAddress] = useState(false);
+  const [addressHint, setAddressHint] = useState('');
+  const addressSearchSeqRef = useRef(0);
+  const addressSearchTimerRef = useRef(null);
+  const poiImageInputRef = useRef(null);
+  const menuImageInputRefs = useRef({});
+  const [uploadingPOIImage, setUploadingPOIImage] = useState(false);
+  const [uploadingMenuIndex, setUploadingMenuIndex] = useState(-1);
 
   // ─── Tour Management State ────────────────────────────────────────────
   const [tours, setTours] = useState([]);
@@ -77,18 +93,77 @@ export default function AdminDashboard() {
   const [selectedVersion, setSelectedVersion] = useState(null); // { v, pois } read-only preview
 
   useEffect(() => {
-    const userEmail = localStorage.getItem('userEmail');
+    const token = localStorage.getItem('accessToken');
     const userRole = localStorage.getItem('userRole');
+    const userEmail = localStorage.getItem('userEmail') || '';
+    setCurrentUserRole(userRole || '');
+    setCurrentUserEmail(userEmail);
 
-    if (!userEmail || (userRole !== 'admin' && userRole !== 'moderator')) {
+    if (!token || (userRole !== 'admin' && userRole !== 'moderator')) {
       router.push('/');
       return;
     }
 
-    setPOIs(makeInitialPOIs());
-    setTours(mockTours.map((t) => ({ ...t })));
-    setLoading(false);
+    // Load real data from backend
+    Promise.all([fetchPOIs(), fetchTours()]).then(([poisData, toursData]) => {
+      const enriched = (Array.isArray(poisData) ? poisData : []).map((poi) => ({
+        ...poi,
+        language: (poi.narration?.sourceLanguage || 'vi').toUpperCase(),
+        restaurant: poi.createdBy || 'Unknown',
+      }));
+      setPOIs(enriched);
+      setTours(Array.isArray(toursData) ? toursData.map((t) => ({ ...t })) : []);
+
+      if (userRole === 'admin') {
+        adminListUsers()
+          .then((data) => setManagedUsers(Array.isArray(data?.users) ? data.users : []))
+          .catch(() => setManagedUsers([]));
+      }
+
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, [router]);
+
+  useEffect(() => () => {
+    if (addressSearchTimerRef.current) {
+      clearTimeout(addressSearchTimerRef.current);
+    }
+  }, []);
+
+  const reloadManagedUsers = async () => {
+    setUserLoading(true);
+    try {
+      const data = await adminListUsers();
+      setManagedUsers(Array.isArray(data?.users) ? data.users : []);
+    } catch (err) {
+      setManagedUsers([]);
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi tải user', message: err.message || 'Không thể tải danh sách user.' });
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  const handleCreateOwnerAccount = async () => {
+    if (!ownerForm.email.trim()) {
+      setModal({ isOpen: true, type: 'error', title: 'Thiếu email', message: 'Vui lòng nhập email merchant/owner.' });
+      return;
+    }
+
+    try {
+      const result = await adminCreateOrUpdateUser(ownerForm);
+      setModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Cập nhật user thành công',
+        message: `${result.email} (${result.role})`,
+      });
+      setOwnerForm((prev) => ({ ...prev, email: '' }));
+      await reloadManagedUsers();
+      setActiveView('users');
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Không thể tạo owner', message: err.message || 'Yêu cầu bị từ chối.' });
+    }
+  };
 
   const pendingPOIs = useMemo(() => pois.filter((poi) => poi.status === 'pending'), [pois]);
   const approvedPOIs = useMemo(() => pois.filter((poi) => poi.status === 'approved'), [pois]);
@@ -97,8 +172,8 @@ export default function AdminDashboard() {
       pois.filter(
         (poi) =>
           poi.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          poi.restaurant.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          poi.category.toLowerCase().includes(searchTerm.toLowerCase())
+          (poi.restaurant || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (poi.category || '').toLowerCase().includes(searchTerm.toLowerCase())
       ),
     [pois, searchTerm]
   );
@@ -129,9 +204,9 @@ export default function AdminDashboard() {
       { label: 'POI Pending', value: pendingPOIs.length, tone: 'from-amber-500 to-amber-700' },
       { label: 'Restaurants', value: restaurantRows.length, tone: 'from-indigo-500 to-indigo-700' },
       { label: 'User Active', value: 123 + pendingPOIs.length * 2, tone: 'from-emerald-500 to-emerald-700' },
-      { label: 'Tour Active', value: mockTours.length, tone: 'from-rose-500 to-rose-700' },
+      { label: 'Tour Active', value: tours.length, tone: 'from-rose-500 to-rose-700' },
     ],
-    [pois.length, pendingPOIs.length, restaurantRows.length]
+    [pois.length, pendingPOIs.length, restaurantRows.length, tours.length]
   );
 
   const activityFeed = useMemo(
@@ -181,63 +256,71 @@ export default function AdminDashboard() {
     setTourView('edit');
   };
 
-  const saveTour = () => {
+  const saveTour = async () => {
     if (!editingTour.name.trim()) {
       setModal({ isOpen: true, type: 'error', title: 'Thiếu tên tour', message: 'Vui lòng nhập tên tour trước khi lưu.' });
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
-    if (editingTour.id) {
-      setTours((prev) => prev.map((t) => {
-        if (t.id !== editingTour.id) return t;
-        const newVersion = (t.version || 1) + 1;
-        const newVersionEntry = { v: newVersion, pois: [...editingTour.pois], updatedAt: today };
-        return {
-          ...t,
-          ...editingTour,
-          version: newVersion,
-          updatedAt: today,
-          versions: [...(t.versions || []), newVersionEntry],
-        };
-      }));
-    } else {
-      const newId = Date.now();
-      const newTour = {
-        ...editingTour,
-        id: newId,
-        version: 1,
-        updatedAt: today,
-        versions: [{ v: 1, pois: [...editingTour.pois], updatedAt: today }],
-      };
-      setTours((prev) => [...prev, newTour]);
+    const payload = {
+      name: editingTour.name,
+      description: editingTour.description || '',
+      language: editingTour.language || 'VI',
+      status: editingTour.status || 'draft',
+      duration: editingTour.duration || '',
+      pois: editingTour.pois || [],
+    };
+    try {
+      if (editingTour.id) {
+        const updated = await updateTour(editingTour.id, payload);
+        setTours((prev) => prev.map((t) => t.id === editingTour.id ? { ...t, ...updated } : t));
+      } else {
+        const created = await createTour(payload);
+        setTours((prev) => [...prev, created]);
+      }
+      setModal({ isOpen: true, type: 'success', title: 'Đã lưu tour', message: 'Tour đã được lưu thành công.' });
+      setTourView('list');
+      setEditingTour(null);
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi', message: err.message || 'Không thể lưu tour.' });
     }
-    setModal({ isOpen: true, type: 'success', title: 'Đã lưu tour', message: 'Tour đã được lưu thành phiên bản mới.' });
-    setTourView('list');
-    setEditingTour(null);
   };
 
-  const deleteTour = (tourId) => {
-    setTours((prev) => prev.filter((t) => t.id !== tourId));
-    setDeleteConfirm(null);
+  const handleDeleteTour = async (tourId) => {
+    try {
+      await deleteTour(tourId);
+      setTours((prev) => prev.filter((t) => t.id !== tourId));
+      setDeleteConfirm(null);
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi', message: err.message || 'Không thể xóa tour.' });
+    }
   };
 
-  const duplicateTour = (tour) => {
-    const newId = Date.now();
-    setTours((prev) => [...prev, {
-      ...tour,
-      id: newId,
-      name: `${tour.name} (Copy)`,
-      status: 'draft',
-      version: 1,
-      updatedAt: new Date().toISOString().slice(0, 10),
-      versions: [{ v: 1, pois: [...tour.pois], updatedAt: new Date().toISOString().slice(0, 10) }],
-    }]);
+  const duplicateTour = async (tour) => {
+    try {
+      const payload = {
+        name: `${tour.name} (Copy)`,
+        description: tour.description || '',
+        language: tour.language || 'VI',
+        status: 'draft',
+        duration: tour.duration || '',
+        pois: tour.pois || [],
+      };
+      const created = await createTour(payload);
+      setTours((prev) => [...prev, created]);
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi', message: err.message || 'Không thể sao chép tour.' });
+    }
   };
 
-  const togglePublish = (tour) => {
+  const togglePublish = async (tour) => {
     const newStatus = tour.status === 'published' ? 'draft' : 'published';
-    setTours((prev) => prev.map((t) => t.id === tour.id ? { ...t, status: newStatus } : t));
-    setPublishConfirm(null);
+    try {
+      const updated = await updateTour(tour.id, { status: newStatus });
+      setTours((prev) => prev.map((t) => t.id === tour.id ? { ...t, ...updated } : t));
+      setPublishConfirm(null);
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi', message: err.message || 'Không thể cập nhật trạng thái tour.' });
+    }
   };
 
   const optimizeEditingRoute = () => {
@@ -314,19 +397,24 @@ export default function AdminDashboard() {
     });
   }, [pois, editingTour, poiSearch]);
 
-  const handleApprovePOI = (poiId) => {
-    setPOIs((prev) =>
-      prev.map((poi) => (poi.id === poiId ? { ...poi, status: 'approved', rejectReason: '' } : poi))
-    );
-    setModal({
-      isOpen: true,
-      type: 'success',
-      title: 'POI đã được duyệt',
-      message: 'Nội dung đã được chuyển sang trạng thái approved.',
-    });
+  const handleApprovePOI = async (poiId) => {
+    try {
+      await approvePOI(poiId);
+      setPOIs((prev) =>
+        prev.map((poi) => (poi.id === poiId ? { ...poi, status: 'approved', rejectReason: '' } : poi))
+      );
+      setModal({
+        isOpen: true,
+        type: 'success',
+        title: 'POI đã được duyệt',
+        message: 'Nội dung đã được chuyển sang trạng thái approved.',
+      });
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi', message: err.message || 'Không thể duyệt POI.' });
+    }
   };
 
-  const handleRejectPOI = (poiId) => {
+  const handleRejectPOI = async (poiId) => {
     if (!rejectReason.trim()) {
       setModal({
         isOpen: true,
@@ -336,31 +424,178 @@ export default function AdminDashboard() {
       });
       return;
     }
+    try {
+      await rejectPOI(poiId, rejectReason.trim());
+      setPOIs((prev) =>
+        prev.map((poi) =>
+          poi.id === poiId
+            ? { ...poi, status: 'rejected', rejectReason: rejectReason.trim() }
+            : poi
+        )
+      );
+      setRejectReason('');
+      setModal({
+        isOpen: true,
+        type: 'info',
+        title: 'POI đã bị từ chối',
+        message: 'Lý do reject đã được lưu để owner chỉnh sửa.',
+      });
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi', message: err.message || 'Không thể reject POI.' });
+    }
+  };
 
-    setPOIs((prev) =>
-      prev.map((poi) =>
-        poi.id === poiId
-          ? { ...poi, status: 'rejected', rejectReason: rejectReason.trim() }
-          : poi
-      )
-    );
-    setRejectReason('');
-    setModal({
-      isOpen: true,
-      type: 'info',
-      title: 'POI đã bị từ chối',
-      message: 'Lý do reject đã được lưu để owner chỉnh sửa.',
+  const handleDeletePOI = async (poiId) => {
+    if (!window.confirm('Bạn có chắc muốn xóa POI này?')) return;
+    try {
+      await deletePOI(poiId);
+      setPOIs((prev) => prev.filter((poi) => poi.id !== poiId));
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi', message: err.message || 'Không thể xóa POI.' });
+    }
+  };
+
+  const canEditPOI = (poi) => {
+    if (!poi) return false;
+    if (currentUserRole === 'admin') return true;
+    if (currentUserRole === 'moderator') {
+      return poi.createdByUser === currentUserEmail;
+    }
+    return false;
+  };
+
+  const createEmptyMenuItem = () => ({
+    id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: { vi: '', en: '', zh: '' },
+    description: { vi: '', en: '', zh: '' },
+    price: 0,
+    currency: 'VND',
+    image: '',
+    category: 'Other',
+  });
+
+  const normalizeMenuItems = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items.map((item, idx) => ({
+      id: item?.id || `tmp-${Date.now()}-${idx}`,
+      name: {
+        vi: item?.name?.vi || '',
+        en: item?.name?.en || '',
+        zh: item?.name?.zh || '',
+      },
+      description: {
+        vi: item?.description?.vi || '',
+        en: item?.description?.en || '',
+        zh: item?.description?.zh || '',
+      },
+      price: Number(item?.price || 0),
+      currency: item?.currency || 'VND',
+      image: item?.image || '',
+      category: item?.category || 'Other',
+    }));
+  };
+
+  const addMenuItem = () => {
+    setSelectedPOI((prev) => ({
+      ...prev,
+      menu: [...normalizeMenuItems(prev?.menu), createEmptyMenuItem()],
+    }));
+  };
+
+  const updateMenuItem = (index, updater) => {
+    setSelectedPOI((prev) => {
+      const nextMenu = normalizeMenuItems(prev?.menu);
+      if (index < 0 || index >= nextMenu.length) return prev;
+      nextMenu[index] = updater(nextMenu[index]);
+      return { ...prev, menu: nextMenu };
     });
   };
 
-  const handleDeletePOI = (poiId) => {
-    if (!window.confirm('Bạn có chắc muốn xóa POI này?')) return;
-    setPOIs((prev) => prev.filter((poi) => poi.id !== poiId));
+  const removeMenuItem = (index) => {
+    setSelectedPOI((prev) => ({
+      ...prev,
+      menu: normalizeMenuItems(prev?.menu).filter((_, idx) => idx !== index),
+    }));
+  };
+
+  const triggerPOIImageUpload = () => {
+    if (poiImageInputRef.current) {
+      poiImageInputRef.current.click();
+    }
+  };
+
+  const handleUploadPOIImage = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingPOIImage(true);
+      const imageUrl = await uploadPOIImage(file);
+      setSelectedPOI((prev) => ({ ...prev, image: imageUrl }));
+      setModal({ isOpen: true, type: 'success', title: 'Upload ảnh thành công', message: 'Ảnh quán đã được cập nhật.' });
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Upload thất bại', message: err.message || 'Không thể upload ảnh quán.' });
+    } finally {
+      setUploadingPOIImage(false);
+      event.target.value = '';
+    }
+  };
+
+  const triggerMenuImageUpload = (index) => {
+    const input = menuImageInputRefs.current[index];
+    if (input) {
+      input.click();
+    }
+  };
+
+  const handleUploadMenuImage = async (index, event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingMenuIndex(index);
+      const imageUrl = await uploadPOIImage(file);
+      updateMenuItem(index, (item) => ({ ...item, image: imageUrl }));
+      setModal({ isOpen: true, type: 'success', title: 'Upload ảnh món thành công', message: `Đã cập nhật ảnh cho món #${index + 1}.` });
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Upload thất bại', message: err.message || 'Không thể upload ảnh món.' });
+    } finally {
+      setUploadingMenuIndex(-1);
+      event.target.value = '';
+    }
+  };
+
+  const openCreatePOI = () => {
+    const draft = {
+      id: null,
+      name: '',
+      description: '',
+      price: '$$',
+      image: '',
+      category: '',
+      location: { lat: 10.796, lng: 106.749 },
+      rating: 0,
+      phone: '',
+      website: '',
+      audio: '',
+      narration: { sourceLanguage: 'vi', content: '' },
+      hours: '',
+      address: '',
+      menu: [createEmptyMenuItem()],
+      status: 'pending',
+      rejectReason: '',
+    };
+    setSelectedPOI(draft);
+    setAddressQuery('');
+    setAddressSuggestions([]);
+    setAddressHint('');
+    setRejectReason('');
   };
 
   const openPOIEditor = (poi) => {
     const draft = {
       ...poi,
+      menu: normalizeMenuItems(poi.menu),
       narration: poi.narration || {
         sourceLanguage: 'vi',
         content: poi.description || '',
@@ -373,28 +608,174 @@ export default function AdminDashboard() {
     setAudioRate(1);
     setAudioVoice('standard-female');
     setAudioDuration(null);
+    setAddressQuery(poi.address || '');
+    setAddressSuggestions([]);
+    setAddressHint('');
   };
 
-  const savePOIContent = () => {
+  const handleAddressSearch = async (query) => {
+    setAddressQuery(query);
+    setSelectedPOI((prev) => ({ ...prev, address: query }));
+
+    if (addressSearchTimerRef.current) {
+      clearTimeout(addressSearchTimerRef.current);
+      addressSearchTimerRef.current = null;
+    }
+
+    if (!query || query.trim().length < 3) {
+      setAddressSuggestions([]);
+      setAddressHint('');
+      setSearchingAddress(false);
+      return;
+    }
+
+    const requestSeq = ++addressSearchSeqRef.current;
+    setSearchingAddress(true);
+    setAddressHint('');
+
+    addressSearchTimerRef.current = setTimeout(async () => {
+      const results = await searchAddressSuggestions(query.trim(), 6);
+      if (requestSeq !== addressSearchSeqRef.current) {
+        return;
+      }
+
+      let nextSuggestions = Array.isArray(results) ? results : [];
+      if (nextSuggestions.length === 0) {
+        const normalized = query.trim().toLowerCase();
+        const localFallback = pois
+          .filter((poi) =>
+            (poi.address || '').toLowerCase().includes(normalized) ||
+            (poi.name || '').toLowerCase().includes(normalized)
+          )
+          .slice(0, 6)
+          .map((poi) => ({
+            display_name: poi.address || poi.name,
+            lat: poi.location?.lat,
+            lng: poi.location?.lng,
+          }))
+          .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+
+        nextSuggestions = localFallback;
+        setAddressHint(
+          localFallback.length > 0
+            ? 'Không lấy được gợi ý online, đang hiển thị gợi ý nội bộ từ dữ liệu POI.'
+            : 'Chưa có gợi ý địa chỉ. Bạn có thể nhập cụ thể hơn hoặc ghim trực tiếp trên bản đồ.'
+        );
+      }
+
+      setAddressSuggestions(nextSuggestions);
+      setSearchingAddress(false);
+    }, 350);
+  };
+
+  const handlePickAddressSuggestion = (item) => {
+    setSelectedPOI((prev) => ({
+      ...prev,
+      address: item.display_name || prev.address,
+      location: { lat: item.lat, lng: item.lng },
+    }));
+    setAddressQuery(item.display_name || '');
+    setAddressSuggestions([]);
+    setAddressHint('');
+  };
+
+  const handleLocationPinChange = async (coords) => {
+    setSelectedPOI((prev) => ({ ...prev, location: coords }));
+    const reverse = await reverseGeocodeLocation(coords.lat, coords.lng);
+    if (reverse?.display_name) {
+      setSelectedPOI((prev) => ({ ...prev, address: reverse.display_name }));
+      setAddressQuery(reverse.display_name);
+      setAddressHint('');
+    }
+  };
+
+  const savePOIContent = async () => {
     if (!selectedPOI) return;
 
-    const nextPOI = {
-      ...selectedPOI,
-      language: (selectedPOI.narration?.sourceLanguage || 'vi').toUpperCase(),
+    if (!selectedPOI.name?.trim()) {
+      setModal({ isOpen: true, type: 'error', title: 'Thiếu tên POI', message: 'Vui lòng nhập tên quán/POI.' });
+      return;
+    }
+
+    if (!selectedPOI.location?.lat || !selectedPOI.location?.lng) {
+      setModal({ isOpen: true, type: 'error', title: 'Thiếu vị trí', message: 'Vui lòng chọn vị trí quán trên map hoặc từ gợi ý địa chỉ.' });
+      return;
+    }
+
+    const payload = {
+      name: selectedPOI.name,
+      description: selectedPOI.description || '',
+      price: selectedPOI.price || '$$',
+      image: selectedPOI.image || '',
+      category: selectedPOI.category || '',
+      location: selectedPOI.location,
+      rating: Number(selectedPOI.rating || 0),
+      phone: selectedPOI.phone || '',
+      website: selectedPOI.website || '',
+      audio: selectedPOI.audio || '',
+      narration: selectedPOI.narration,
+      hours: selectedPOI.hours || '',
+      address: selectedPOI.address || '',
+      rejectReason: selectedPOI.rejectReason || '',
+      status: selectedPOI.status || 'pending',
+      menu: normalizeMenuItems(selectedPOI.menu).map((item) => ({
+        id: item.id?.startsWith('tmp-') ? null : String(item.id),
+        name: {
+          vi: item.name.vi || '',
+          en: item.name.en || '',
+          zh: item.name.zh || '',
+        },
+        description: {
+          vi: item.description.vi || '',
+          en: item.description.en || '',
+          zh: item.description.zh || '',
+        },
+        price: Number(item.price || 0),
+        currency: item.currency || 'VND',
+        image: item.image || '',
+        category: item.category || 'Other',
+      })),
     };
 
-    setPOIs((prev) =>
-      prev.map((poi) => (poi.id === selectedPOI.id ? { ...poi, ...nextPOI } : poi))
-    );
-
-    setSelectedPOI(nextPOI);
-
-    setModal({
-      isOpen: true,
-      type: 'success',
-      title: 'Đã lưu nội dung POI',
-      message: 'Thuyết minh, ngôn ngữ gốc và thiết lập audio đã được cập nhật.',
-    });
+    try {
+      if (selectedPOI.id) {
+        if (!canEditPOI(selectedPOI)) {
+          setModal({ isOpen: true, type: 'error', title: 'Không có quyền', message: 'Moderator chỉ có thể chỉnh sửa POI do mình tạo.' });
+          return;
+        }
+        const updated = await updatePOI(selectedPOI.id, payload);
+        const nextUpdated = {
+          ...updated,
+          language: (updated.narration?.sourceLanguage || 'vi').toUpperCase(),
+          restaurant: updated.createdBy || 'Unknown',
+        };
+        setPOIs((prev) =>
+          prev.map((poi) => (poi.id === selectedPOI.id ? { ...poi, ...nextUpdated } : poi))
+        );
+        setSelectedPOI(nextUpdated);
+      } else {
+        const created = await createPOI(payload);
+        const nextCreated = {
+          ...created,
+          language: (created.narration?.sourceLanguage || 'vi').toUpperCase(),
+          restaurant: created.createdBy || 'Unknown',
+        };
+        setPOIs((prev) => [{
+          ...nextCreated,
+        }, ...prev]);
+        setSelectedPOI(nextCreated);
+      }
+      setModal({
+        isOpen: true,
+        type: 'success',
+        title: selectedPOI.id ? 'Đã cập nhật POI' : 'Đã tạo POI',
+        message: selectedPOI.id
+          ? 'Thông tin chi tiết quán đã được lưu vào database.'
+          : 'POI mới đã được tạo và lưu vào database (pending).',
+      });
+    } catch (err) {
+      setModal({ isOpen: true, type: 'error', title: 'Lỗi lưu POI', message: err.message || 'Không thể lưu nội dung.' });
+    }
   };
 
   const updateNarration = (patch) => {
@@ -547,9 +928,17 @@ export default function AdminDashboard() {
               {activeView === 'poi' && (
                 <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-5">
                   <section className="bg-white rounded-2xl border border-[#e5e7eb] overflow-hidden">
-                    <div className="p-4 border-b border-[#e5e7eb] flex justify-between items-center">
+                    <div className="p-4 border-b border-[#e5e7eb] flex justify-between items-center gap-3">
                       <h3 className="font-bold text-[#111827]">POI Management</h3>
-                      <span className="text-xs text-[#6b7280]">{filteredPOIs.length} POI</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[#6b7280]">{filteredPOIs.length} POI</span>
+                        <button
+                          className="px-3 py-1.5 rounded bg-[#111827] text-white text-xs font-semibold"
+                          onClick={openCreatePOI}
+                        >
+                          Tạo POI
+                        </button>
+                      </div>
                     </div>
                     <div className="overflow-auto">
                       <table className="w-full text-sm">
@@ -558,6 +947,7 @@ export default function AdminDashboard() {
                             <th className="text-left px-3 py-3">Tên POI</th>
                             <th className="text-left px-3 py-3">Restaurant</th>
                             <th className="text-left px-3 py-3">Category</th>
+                            <th className="text-left px-3 py-3">Creator</th>
                             <th className="text-left px-3 py-3">Status</th>
                             <th className="text-left px-3 py-3">Ngôn ngữ</th>
                             <th className="text-left px-3 py-3">Ngày tạo</th>
@@ -570,6 +960,7 @@ export default function AdminDashboard() {
                               <td className="px-3 py-3 font-semibold text-[#111827]">{poi.name}</td>
                               <td className="px-3 py-3 text-[#4b5563]">{poi.restaurant}</td>
                               <td className="px-3 py-3 text-[#4b5563]">{poi.category}</td>
+                              <td className="px-3 py-3 text-[#4b5563]">{poi.createdByUser || '-'}</td>
                               <td className="px-3 py-3">
                                 <span className={`px-2 py-1 rounded-full border text-xs font-semibold ${STATUS_STYLES[poi.status] || STATUS_STYLES.pending}`}>
                                   {poi.status}
@@ -588,10 +979,18 @@ export default function AdminDashboard() {
                                   <button className="px-2 py-1 rounded bg-amber-500 text-white text-xs" onClick={() => openPOIEditor(poi)}>
                                     Reject
                                   </button>
-                                  <button className="px-2 py-1 rounded bg-sky-600 text-white text-xs" onClick={() => openPOIEditor(poi)}>
+                                  <button
+                                    className={`px-2 py-1 rounded text-white text-xs ${canEditPOI(poi) ? 'bg-sky-600' : 'bg-slate-400 cursor-not-allowed'}`}
+                                    disabled={!canEditPOI(poi)}
+                                    onClick={() => openPOIEditor(poi)}
+                                  >
                                     Edit
                                   </button>
-                                  <button className="px-2 py-1 rounded bg-rose-600 text-white text-xs" onClick={() => handleDeletePOI(poi.id)}>
+                                  <button
+                                    className={`px-2 py-1 rounded text-white text-xs ${canEditPOI(poi) ? 'bg-rose-600' : 'bg-slate-400 cursor-not-allowed'}`}
+                                    disabled={!canEditPOI(poi)}
+                                    onClick={() => handleDeletePOI(poi.id)}
+                                  >
                                     Delete
                                   </button>
                                 </div>
@@ -625,6 +1024,212 @@ export default function AdminDashboard() {
                               className="w-full border border-[#d1d5db] rounded-lg px-2 py-1.5"
                             />
                           </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-[#6b7280]">Mô tả quán</p>
+                          <textarea
+                            value={selectedPOI.description || ''}
+                            onChange={(e) => setSelectedPOI((prev) => ({ ...prev, description: e.target.value }))}
+                            className="w-full border border-[#d1d5db] rounded-lg p-2 text-sm"
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <p className="text-xs text-[#6b7280]">Điện thoại</p>
+                            <input
+                              value={selectedPOI.phone || ''}
+                              onChange={(e) => setSelectedPOI((prev) => ({ ...prev, phone: e.target.value }))}
+                              className="w-full border border-[#d1d5db] rounded-lg px-2 py-1.5"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs text-[#6b7280]">Website</p>
+                            <input
+                              value={selectedPOI.website || ''}
+                              onChange={(e) => setSelectedPOI((prev) => ({ ...prev, website: e.target.value }))}
+                              className="w-full border border-[#d1d5db] rounded-lg px-2 py-1.5"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <p className="text-xs text-[#6b7280]">Giờ mở cửa</p>
+                            <input
+                              value={selectedPOI.hours || ''}
+                              onChange={(e) => setSelectedPOI((prev) => ({ ...prev, hours: e.target.value }))}
+                              className="w-full border border-[#d1d5db] rounded-lg px-2 py-1.5"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-[#6b7280]">Hình ảnh POI (URL)</p>
+                            <input
+                              value={selectedPOI.image || ''}
+                              onChange={(e) => setSelectedPOI((prev) => ({ ...prev, image: e.target.value }))}
+                              className="w-full border border-[#d1d5db] rounded-lg px-2 py-1.5"
+                              placeholder="https://..."
+                            />
+                            <input
+                              ref={poiImageInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleUploadPOIImage}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="px-2 py-1 text-[11px] rounded border border-[#d1d5db] bg-white"
+                                onClick={triggerPOIImageUpload}
+                                disabled={uploadingPOIImage}
+                              >
+                                {uploadingPOIImage ? 'Đang upload...' : 'Upload ảnh'}
+                              </button>
+                              <button
+                                type="button"
+                                className="px-2 py-1 text-[11px] rounded border border-[#d1d5db] bg-white"
+                                onClick={() => setSelectedPOI((prev) => ({ ...prev, image: '' }))}
+                              >
+                                Xóa ảnh
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-[#e5e7eb] p-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-[#374151]">Menu món ăn</p>
+                            <button
+                              type="button"
+                              onClick={addMenuItem}
+                              className="px-2.5 py-1.5 rounded bg-[#111827] text-white text-xs"
+                            >
+                              + Thêm món
+                            </button>
+                          </div>
+
+                          {normalizeMenuItems(selectedPOI.menu).length === 0 && (
+                            <p className="text-xs text-[#6b7280]">Chưa có món nào. Bấm "Thêm món" để bắt đầu.</p>
+                          )}
+
+                          {normalizeMenuItems(selectedPOI.menu).map((menuItem, idx) => (
+                            <div key={menuItem.id || idx} className="border border-[#e5e7eb] rounded-lg p-2 space-y-2 bg-[#fafafa]">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-semibold text-[#374151]">Món #{idx + 1}</p>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 text-[11px] rounded bg-rose-600 text-white"
+                                  onClick={() => removeMenuItem(idx)}
+                                >
+                                  Xóa
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  value={menuItem.name.vi}
+                                  onChange={(e) => updateMenuItem(idx, (item) => ({ ...item, name: { ...item.name, vi: e.target.value } }))}
+                                  className="border border-[#d1d5db] rounded px-2 py-1.5 text-xs"
+                                  placeholder="Tên món (VI)"
+                                />
+                                <input
+                                  value={menuItem.name.en}
+                                  onChange={(e) => updateMenuItem(idx, (item) => ({ ...item, name: { ...item.name, en: e.target.value } }))}
+                                  className="border border-[#d1d5db] rounded px-2 py-1.5 text-xs"
+                                  placeholder="Tên món (EN)"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  value={menuItem.price}
+                                  onChange={(e) => updateMenuItem(idx, (item) => ({ ...item, price: Number(e.target.value || 0) }))}
+                                  className="border border-[#d1d5db] rounded px-2 py-1.5 text-xs"
+                                  placeholder="Giá"
+                                  type="number"
+                                  min={0}
+                                />
+                                <input
+                                  value={menuItem.category}
+                                  onChange={(e) => updateMenuItem(idx, (item) => ({ ...item, category: e.target.value }))}
+                                  className="border border-[#d1d5db] rounded px-2 py-1.5 text-xs"
+                                  placeholder="Category"
+                                />
+                              </div>
+
+                              <input
+                                value={menuItem.image}
+                                onChange={(e) => updateMenuItem(idx, (item) => ({ ...item, image: e.target.value }))}
+                                className="w-full border border-[#d1d5db] rounded px-2 py-1.5 text-xs"
+                                placeholder="Ảnh món (URL)"
+                              />
+                              <input
+                                ref={(el) => { menuImageInputRefs.current[idx] = el; }}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleUploadMenuImage(idx, e)}
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 text-[11px] rounded border border-[#d1d5db] bg-white"
+                                  onClick={() => triggerMenuImageUpload(idx)}
+                                  disabled={uploadingMenuIndex === idx}
+                                >
+                                  {uploadingMenuIndex === idx ? 'Đang upload...' : 'Upload ảnh món'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 text-[11px] rounded border border-[#d1d5db] bg-white"
+                                  onClick={() => updateMenuItem(idx, (item) => ({ ...item, image: '' }))}
+                                >
+                                  Xóa ảnh món
+                                </button>
+                              </div>
+                              {menuItem.image && (
+                                <img src={menuItem.image} alt={menuItem.name.vi || `menu-${idx + 1}`} className="w-full h-24 object-cover rounded border border-[#e5e7eb]" />
+                              )}
+                              <textarea
+                                value={menuItem.description.vi}
+                                onChange={(e) => updateMenuItem(idx, (item) => ({ ...item, description: { ...item.description, vi: e.target.value } }))}
+                                className="w-full border border-[#d1d5db] rounded p-2 text-xs"
+                                rows={2}
+                                placeholder="Mô tả món (VI)"
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="relative">
+                          <p className="text-xs text-[#6b7280] mb-1">Địa chỉ quán / chi nhánh</p>
+                          <input
+                            value={addressQuery}
+                            onChange={(e) => handleAddressSearch(e.target.value)}
+                            className="w-full border border-[#d1d5db] rounded-lg px-2 py-1.5 text-sm"
+                            placeholder="Nhập địa chỉ để gợi ý từ bản đồ..."
+                          />
+                          {searchingAddress && <p className="text-[11px] text-[#6b7280] mt-1">Đang tìm địa chỉ...</p>}
+                          {!searchingAddress && !!addressHint && (
+                            <p className="text-[11px] text-[#b45309] mt-1">{addressHint}</p>
+                          )}
+                          {addressSuggestions.length > 0 && (
+                            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#d1d5db] rounded-lg shadow max-h-44 overflow-auto">
+                              {addressSuggestions.map((item, idx) => (
+                                <button
+                                  key={`${item.display_name}-${idx}`}
+                                  type="button"
+                                  className="w-full text-left px-2 py-2 text-xs hover:bg-[#f3f4f6] border-b border-[#f3f4f6]"
+                                  onClick={() => handlePickAddressSuggestion(item)}
+                                >
+                                  {item.display_name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div>
@@ -760,12 +1365,21 @@ export default function AdminDashboard() {
                             <source src={selectedPOI.audio} type="audio/mpeg" />
                           </audio>
                         </div>
+                        <div className="text-xs text-[#6b7280]">
+                          Vị trí hiện tại: {selectedPOI.location?.lat?.toFixed?.(6) || '--'}, {selectedPOI.location?.lng?.toFixed?.(6) || '--'}
+                        </div>
                         <div className="h-40 rounded-xl overflow-hidden border border-[#e5e7eb]">
                           <MapComponent
-                            pois={[selectedPOI]}
+                            pois={[]}
                             routeTarget={null}
-                            selectedPOIId={selectedPOI.id}
+                            selectedPOIId={selectedPOI.id || null}
                             onPOISelect={() => {}}
+                            initialCenter={selectedPOI.location || { lat: 10.796, lng: 106.749 }}
+                            disableAutoLocate
+                            showUserMarker={false}
+                            editableLocation
+                            locationPin={selectedPOI.location}
+                            onLocationPinChange={handleLocationPinChange}
                           />
                         </div>
                         <textarea
@@ -776,13 +1390,21 @@ export default function AdminDashboard() {
                           placeholder="Nhập lý do reject (nếu có)..."
                         />
                         <div className="grid grid-cols-2 gap-2">
-                          <button onClick={savePOIContent} className="rounded-lg bg-[#111827] text-white text-sm font-semibold">Save Content</button>
-                          <button onClick={() => handleApprovePOI(selectedPOI.id)} className="rounded-lg bg-emerald-600 text-white text-sm font-semibold">Approve</button>
+                          <button onClick={savePOIContent} className="rounded-lg bg-[#111827] text-white text-sm font-semibold">
+                            {selectedPOI.id ? 'Lưu POI' : 'Tạo POI'}
+                          </button>
+                          {selectedPOI.id ? (
+                            <button onClick={() => handleApprovePOI(selectedPOI.id)} className="rounded-lg bg-emerald-600 text-white text-sm font-semibold">Approve</button>
+                          ) : (
+                            <button onClick={() => setSelectedPOI(null)} className="rounded-lg bg-[#374151] text-white text-sm font-semibold">Close</button>
+                          )}
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => handleRejectPOI(selectedPOI.id)} className="rounded-lg bg-amber-500 text-white text-sm font-semibold">Reject</button>
-                          <button onClick={() => setSelectedPOI(null)} className="rounded-lg bg-[#374151] text-white text-sm font-semibold">Close</button>
-                        </div>
+                        {selectedPOI.id && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => handleRejectPOI(selectedPOI.id)} className="rounded-lg bg-amber-500 text-white text-sm font-semibold">Reject</button>
+                            <button onClick={() => setSelectedPOI(null)} className="rounded-lg bg-[#374151] text-white text-sm font-semibold">Close</button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-[#6b7280]">Chọn một POI từ danh sách để bắt đầu moderation.</p>
@@ -1253,7 +1875,7 @@ export default function AdminDashboard() {
                         </div>
                         <p className="text-sm text-[#374151] mb-5">Hành động này không thể hoàn tác. Tour và tất cả lịch sử phiên bản sẽ bị xóa.</p>
                         <div className="flex gap-3">
-                          <button onClick={() => deleteTour(deleteConfirm.id)} className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 transition">
+                          <button onClick={() => handleDeleteTour(deleteConfirm.id)} className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 transition">
                             Xóa vĩnh viễn
                           </button>
                           <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-[#d1d5db] text-sm font-semibold text-[#374151] hover:bg-[#f3f4f6] transition">
@@ -1427,6 +2049,94 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <button className="px-4 py-2 rounded-lg bg-[#111827] text-white text-sm font-semibold">Save settings</button>
+                </section>
+              )}
+
+              {activeView === 'users' && (
+                <section className="space-y-5">
+                  <div className="bg-white rounded-2xl border border-[#e5e7eb] p-4 space-y-4">
+                    <h3 className="font-bold text-[#111827]">Admin - User Management (Merchant/Owner)</h3>
+                    {typeof window !== 'undefined' && localStorage.getItem('userRole') !== 'admin' ? (
+                      <p className="text-sm text-rose-600">Chỉ admin mới có quyền tạo/cập nhật tài khoản merchant.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                          <input
+                            className="md:col-span-2 w-full border border-[#d1d5db] rounded-lg px-3 py-2"
+                            placeholder="owner@example.com"
+                            value={ownerForm.email}
+                            onChange={(e) => setOwnerForm((prev) => ({ ...prev, email: e.target.value }))}
+                          />
+                          <select
+                            className="w-full border border-[#d1d5db] rounded-lg px-3 py-2"
+                            value={ownerForm.language}
+                            onChange={(e) => setOwnerForm((prev) => ({ ...prev, language: e.target.value }))}
+                          >
+                            <option value="vi">vi</option>
+                            <option value="en">en</option>
+                            <option value="zh">zh</option>
+                          </select>
+                          <select
+                            className="w-full border border-[#d1d5db] rounded-lg px-3 py-2"
+                            value={ownerForm.role}
+                            onChange={(e) => setOwnerForm((prev) => ({ ...prev, role: e.target.value }))}
+                          >
+                            <option value="owner">owner</option>
+                            <option value="moderator">moderator</option>
+                            <option value="visitor">visitor</option>
+                          </select>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className="px-4 py-2 rounded-lg bg-[#111827] text-white text-sm font-semibold"
+                            onClick={handleCreateOwnerAccount}
+                          >
+                            Tạo/Cập nhật tài khoản
+                          </button>
+                          <button
+                            className="px-4 py-2 rounded-lg border border-[#d1d5db] text-sm font-semibold"
+                            onClick={reloadManagedUsers}
+                          >
+                            Làm mới danh sách
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-[#e5e7eb] p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold text-[#111827]">Danh sách merchant/user</h4>
+                      {userLoading && <span className="text-xs text-[#6b7280]">Đang tải...</span>}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left border-b border-[#e5e7eb]">
+                            <th className="py-2 pr-3">Email</th>
+                            <th className="py-2 pr-3">Role</th>
+                            <th className="py-2 pr-3">Language</th>
+                            <th className="py-2 pr-3">Created At</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {managedUsers.map((user) => (
+                            <tr key={user.id} className="border-b border-[#f1f5f9]">
+                              <td className="py-2 pr-3">{user.email}</td>
+                              <td className="py-2 pr-3">{user.role}</td>
+                              <td className="py-2 pr-3">{user.language}</td>
+                              <td className="py-2 pr-3">{new Date(user.created_at).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                          {!managedUsers.length && (
+                            <tr>
+                              <td colSpan={4} className="py-4 text-center text-[#6b7280]">Chưa có dữ liệu user.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </section>
               )}
             </main>

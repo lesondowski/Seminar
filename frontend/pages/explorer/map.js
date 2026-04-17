@@ -4,6 +4,8 @@ import Navbar from '../../components/common/Navbar';
 import MapComponent from '../../components/map/MapComponent';
 import Loading from '../../components/common/Loading';
 import { useLanguage } from '../../utils/i18n/LanguageContext';
+import useUserLocation from '../../hooks/useUserLocation';
+import useRoute from '../../hooks/useRoute';
 import NarrationBlock from '../../components/poi/NarrationBlock';
 import { 
   ClockIcon, 
@@ -16,7 +18,7 @@ import {
   MapPinIcon,
   CloseIcon
 } from '../../components/common/Icons';
-import { mockPOIs } from '../../utils/api/mockData';
+import { fetchPOIs } from '../../utils/api/poiService';
 
 
 export default function MapPage() {
@@ -26,15 +28,34 @@ export default function MapPage() {
   const [filteredPOIs, setFilteredPOIs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState(null);
   const [activeTab, setActiveTab] = useState('explore');
   const [showPoiSheet, setShowPoiSheet] = useState(false);
   const [selectedPoi, setSelectedPoi] = useState(null);
+  const [activeDetailTab, setActiveDetailTab] = useState('info');
+  const [routeTargetPoi, setRouteTargetPoi] = useState(null);
+  const [isRouteAnimating, setIsRouteAnimating] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [route, setRoute] = useState([]);
-  const [routeInfo, setRouteInfo] = useState(null);
   const [chatMessages, setChatMessages] = useState([{ from: 'bot', text: t('map_chat_greeting') }]);
+
+  const { location: userLocation, locationError, refreshLocation } = useUserLocation({
+    watch: true,
+    minDistanceMeters: 25,
+  });
+
+  const {
+    routeCoords,
+    routeInfo,
+    routeError,
+    isLoadingRoute,
+    refreshRoute,
+    clearRoute,
+  } = useRoute({
+    from: userLocation,
+    to: routeTargetPoi?.location,
+    enabled: Boolean(routeTargetPoi && userLocation),
+    profile: 'foot',
+  });
 
   useEffect(() => {
     setChatMessages((prev) => {
@@ -46,24 +67,26 @@ export default function MapPage() {
   }, [language, t]);
 
   useEffect(() => {
-    const userEmail = localStorage.getItem('userEmail');
-    if (!userEmail) {
+    const accessToken = localStorage.getItem('accessToken');
+    if (!accessToken) {
       router.push('/auth/login');
       return;
     }
 
-    setPOIs(mockPOIs);
-    setFilteredPOIs(mockPOIs);
-    setLoading(false);
+    const loadPois = async () => {
+      try {
+        const data = await fetchPOIs();
+        setPOIs(Array.isArray(data) ? data : []);
+        setFilteredPOIs(Array.isArray(data) ? data : []);
+      } catch (error) {
+        setPOIs([]);
+        setFilteredPOIs([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-      });
-    }
+    loadPois();
   }, [router]);
 
   useEffect(() => {
@@ -73,6 +96,19 @@ export default function MapPage() {
     );
     setFilteredPOIs(next);
   }, [searchTerm, pois]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (filteredPOIs.length === 0) return;
+
+    const focusPoiId = Number(router.query.focusPoi);
+    if (!focusPoiId) return;
+
+    const focusPoi = filteredPOIs.find((poi) => poi.id === focusPoiId);
+    if (!focusPoi) return;
+
+    setSelectedPoi(focusPoi);
+  }, [router.isReady, router.query.focusPoi, filteredPOIs]);
 
   const handleExplore = () => {
     setActiveTab('explore');
@@ -117,32 +153,49 @@ export default function MapPage() {
     return (R * c).toFixed(2);
   };
 
-  const handleGetDirections = () => {
-    if (selectedPoi && userLocation) {
-      const distance = calculateDistance(
-        userLocation.lat,
-        userLocation.lng,
-        selectedPoi.location.lat,
-        selectedPoi.location.lng
-      );
-      
-      // Set route to show on map (from user location through POI)
-      setRoute([{
-        id: 'user-location',
-        location: userLocation,
-        name: t('map_your_location')
-      }, selectedPoi]);
-      
-      // Store route info for display
-      setRouteInfo({
-        destination: selectedPoi.name,
-        distance: distance,
-        estimatedTime: (distance / 20).toFixed(1) // Rough estimate: ~20km/hour average
-      });
-      
-      // Close modal and show route info
-      setSelectedPoi(null);
+  const formatDistance = (distanceMeters) => {
+    if (!distanceMeters && distanceMeters !== 0) return '--';
+    if (distanceMeters < 1000) return `${Math.round(distanceMeters)} m`;
+    return `${(distanceMeters / 1000).toFixed(2)} km`;
+  };
+
+  const formatDuration = (durationMinutes) => {
+    if (!durationMinutes && durationMinutes !== 0) return '--';
+    if (durationMinutes < 1) return `~1 ${t('map_minutes')}`;
+    return `~${Math.round(durationMinutes)} ${t('map_minutes')}`;
+  };
+
+  const getLocalizedMenuField = (field) => {
+    if (!field) return '';
+    if (typeof field === 'string') return field;
+    return field[language] || field.vi || field.en || field.zh || '';
+  };
+
+  const formatMenuPrice = (item) => {
+    if (typeof item.price === 'number') {
+      const locale = language === 'vi' ? 'vi-VN' : language === 'zh' ? 'zh-CN' : 'en-US';
+      const currency = item.currency || 'VND';
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 0,
+      }).format(item.price);
     }
+    return item.price || '--';
+  };
+
+  const getGroupedMenu = (menu = []) => {
+    return menu.reduce((group, item) => {
+      const category = item.category || 'Other';
+      if (!group[category]) group[category] = [];
+      group[category].push(item);
+      return group;
+    }, {});
+  };
+
+  const handleGetDirections = () => {
+    if (!selectedPoi || !userLocation) return;
+    setRouteTargetPoi(selectedPoi);
   };
 
   const handleAddToTour = () => {
@@ -151,9 +204,24 @@ export default function MapPage() {
   };
 
   const handleClearRoute = () => {
-    setRoute([]);
-    setRouteInfo(null);
+    setRouteTargetPoi(null);
+    clearRoute();
   };
+
+  useEffect(() => {
+    if (routeCoords.length > 1) {
+      setIsRouteAnimating(true);
+      const timer = setTimeout(() => setIsRouteAnimating(false), 1600);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [routeCoords]);
+
+  useEffect(() => {
+    if (selectedPoi) {
+      setActiveDetailTab('info');
+    }
+  }, [selectedPoi]);
 
   if (loading) return <Loading fullScreen />;
 
@@ -223,7 +291,9 @@ export default function MapPage() {
               userLocation={userLocation}
               onPOISelect={handlePoiSelect}
               loading={false}
-              route={route}
+              externalRouteCoords={routeCoords}
+              destinationPOI={routeTargetPoi}
+              isRouteAnimating={isRouteAnimating}
               highlightedPOI={selectedPoi}
             />
             
@@ -233,7 +303,7 @@ export default function MapPage() {
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="font-bold text-[#212121] text-sm mb-1 inline-flex items-center gap-1"><MapPinIcon className="w-4 h-4" /> {t('map_route_to')}</h3>
-                    <p className="text-lg font-bold text-[#333333]">{routeInfo.destination}</p>
+                    <p className="text-lg font-bold text-[#333333]">{routeTargetPoi?.name}</p>
                   </div>
                   <button
                     onClick={handleClearRoute}
@@ -246,15 +316,47 @@ export default function MapPage() {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div className="bg-[#EAEAEA] rounded p-2">
                     <p className="text-[#757575] text-xs font-semibold">{t('map_distance')}</p>
-                    <p className="text-[#333333] font-bold">{routeInfo.distance} km</p>
+                    <p className="text-[#333333] font-bold">{formatDistance(routeInfo.distanceMeters)}</p>
                   </div>
                   <div className="bg-[#EAEAEA] rounded p-2">
                     <p className="text-[#757575] text-xs font-semibold">{t('map_duration')}</p>
-                    <p className="text-[#333333] font-bold">~{routeInfo.estimatedTime} {t('map_minutes')}</p>
+                    <p className="text-[#333333] font-bold">{formatDuration(routeInfo.durationMinutes)}</p>
                   </div>
                 </div>
                 
-                <p className="text-xs text-[#757575] text-center">{t('map_route_computed')}</p>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={handleClearRoute}
+                    className="flex-1 px-3 py-2 rounded-lg border border-[#DDDDDD] text-[#333333] text-xs font-semibold hover:bg-[#F5F5F5] transition"
+                  >
+                    {t('map_clear_route')}
+                  </button>
+                  <button
+                    onClick={() => refreshRoute()}
+                    disabled={isLoadingRoute}
+                    className="flex-1 px-3 py-2 rounded-lg bg-[#333333] text-white text-xs font-semibold hover:bg-[#444444] transition disabled:opacity-50"
+                  >
+                    {isLoadingRoute ? t('map_refreshing_route') : t('map_refresh_route')}
+                  </button>
+                </div>
+
+                {routeError ? (
+                  <p className="text-xs text-[#DC3545] text-center">{routeError}</p>
+                ) : (
+                  <p className="text-xs text-[#757575] text-center">{t('map_route_computed')}</p>
+                )}
+              </div>
+            )}
+
+            {locationError && (
+              <div className="absolute top-4 left-4 right-4 max-w-md bg-[#FFFFFF] rounded-lg shadow-lg border border-[#DC3545]/40 p-3 z-50">
+                <p className="text-sm font-semibold text-[#DC3545] mb-2">{locationError}</p>
+                <button
+                  onClick={refreshLocation}
+                  className="px-3 py-1.5 rounded-md bg-[#333333] text-white text-xs font-semibold"
+                >
+                  {t('map_retry_gps')}
+                </button>
               </div>
             )}
           </div>
@@ -307,107 +409,172 @@ export default function MapPage() {
 
           {/* Improved POI Detail Modal - Moved outside map container */}
           {selectedPoi && (
-            <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
-              <div className="w-full max-w-md bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#DDDDDD] flex flex-col max-h-[90vh]">
+            <div className="fixed inset-0 z-[9999] md:pointer-events-none">
+              <div
+                className="absolute inset-0 bg-black/40 md:hidden"
+                onClick={() => setSelectedPoi(null)}
+              />
+
+              <div className="absolute bottom-0 left-0 right-0 bg-[#FFFFFF] rounded-t-2xl shadow-2xl border border-[#DDDDDD] flex flex-col max-h-[85vh] animate-slide-in-up md:pointer-events-auto md:top-0 md:bottom-0 md:left-auto md:right-0 md:w-[420px] md:max-h-none md:rounded-none md:rounded-l-2xl">
                 {/* Header with close button - Fixed */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[#DDDDDD] bg-gradient-to-r from-[#F5F5F5] to-[#EAEAEA] flex-shrink-0">
                   <h2 className="text-lg font-bold text-[#212121]">{t('map_poi_detail')}</h2>
                   <button onClick={() => setSelectedPoi(null)} className="text-2xl font-bold text-[#757575] hover:text-[#212121]"><CloseIcon className="w-6 h-6" /></button>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2 p-3 border-b border-[#DDDDDD] bg-[#FFFFFF]">
+                  <button
+                    onClick={() => setActiveDetailTab('info')}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                      activeDetailTab === 'info'
+                        ? 'bg-[#333333] text-white'
+                        : 'bg-[#F5F5F5] text-[#333333]'
+                    }`}
+                  >
+                    {t('map_tab_info')}
+                  </button>
+                  <button
+                    onClick={() => setActiveDetailTab('menu')}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                      activeDetailTab === 'menu'
+                        ? 'bg-[#333333] text-white'
+                        : 'bg-[#F5F5F5] text-[#333333]'
+                    }`}
+                  >
+                    {t('map_tab_menu')}
+                  </button>
+                </div>
+
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                  {/* POI Image */}
-                  {selectedPoi.image && (
-                    <div className="rounded-lg overflow-hidden shadow-sm">
-                      <img src={selectedPoi.image} alt={selectedPoi.name} className="w-full h-40 object-cover" />
-                    </div>
-                  )}
+                  {activeDetailTab === 'info' && (
+                    <>
+                      {selectedPoi.image && (
+                        <div className="rounded-lg overflow-hidden shadow-sm">
+                          <img src={selectedPoi.image} alt={selectedPoi.name} className="w-full h-40 object-cover" />
+                        </div>
+                      )}
 
-                  {/* POI Name & Category */}
-                  <div>
-                    <h3 className="text-2xl font-bold text-[#212121] mb-2">{selectedPoi.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block px-3 py-1 bg-[#DC3545]/20 text-[#DC3545] text-xs font-semibold rounded-full">
-                        {selectedPoi.category}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Rating & Views */}
-                  <div className="flex items-center justify-between bg-[#EAEAEA] rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <StarIcon className="w-5 h-5 text-[#FFC107]" />
-                        <span className="font-bold text-[#212121]">{selectedPoi.rating.toFixed(1)}</span>
-                      </div>
-                      <span className="text-sm text-[#757575]">({Math.floor(Math.random() * 5000) + 1000} {t('map_reviews')})</span>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <div>
-                    <p className="text-sm text-[#212121] leading-relaxed">{selectedPoi.description}</p>
-                  </div>
-
-                  {/* Opening Hours */}
-                  <div className="flex items-start gap-3 bg-[#EAEAEA] rounded-lg p-3">
-                    <ClockIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-600 font-semibold">{t('poi_hours')}</p>
-                      <p className="text-sm text-gray-800 font-medium">{selectedPoi.hours || '6:00 - 22:00'}</p>
-                    </div>
-                  </div>
-
-                  {/* Distance */}
-                  {userLocation && (
-                    <div className="flex items-start gap-3 bg-green-50 rounded-lg p-3">
-                      <LocationIcon className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="text-xs text-gray-600 font-semibold">{t('map_distance')}</p>
-                        <p className="text-sm text-gray-800 font-medium">
-                          {calculateDistance(
-                            userLocation.lat,
-                            userLocation.lng,
-                            selectedPoi.location.lat,
-                            selectedPoi.location.lng
-                          )} km
-                        </p>
+                        <h3 className="text-2xl font-bold text-[#212121] mb-2">{selectedPoi.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block px-3 py-1 bg-[#DC3545]/20 text-[#DC3545] text-xs font-semibold rounded-full">
+                            {selectedPoi.category}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
 
-                  {/* Price */}
-                  <div className="flex items-start gap-3 bg-purple-50 rounded-lg p-3">
-                    <PriceIcon className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-600 font-semibold">{t('poi_price')}</p>
-                      <p className="text-sm text-gray-800 font-medium">{selectedPoi.price || '$$'}</p>
-                    </div>
-                  </div>
+                      <div className="flex items-center justify-between bg-[#EAEAEA] rounded-lg p-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <StarIcon className="w-5 h-5 text-[#FFC107]" />
+                            <span className="font-bold text-[#212121]">{selectedPoi.rating.toFixed(1)}</span>
+                          </div>
+                          <span className="text-sm text-[#757575]">({Math.floor(Math.random() * 5000) + 1000} {t('map_reviews')})</span>
+                        </div>
+                      </div>
 
-                  {/* Address & Phone */}
-                  {(selectedPoi.address || selectedPoi.phone) && (
-                    <div className="space-y-2">
-                      {selectedPoi.address && (
-                        <div className="flex items-start gap-3">
-                          <span className="text-sm text-gray-600 font-semibold min-w-16">{t('map_address')}:</span>
-                          <span className="text-sm text-gray-800">{selectedPoi.address}</span>
+                      <div>
+                        <p className="text-sm text-[#212121] leading-relaxed">{selectedPoi.description}</p>
+                      </div>
+
+                      <div className="flex items-start gap-3 bg-[#EAEAEA] rounded-lg p-3">
+                        <ClockIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-600 font-semibold">{t('poi_hours')}</p>
+                          <p className="text-sm text-gray-800 font-medium">{selectedPoi.hours || '6:00 - 22:00'}</p>
+                        </div>
+                      </div>
+
+                      {userLocation && (
+                        <div className="flex items-start gap-3 bg-green-50 rounded-lg p-3">
+                          <LocationIcon className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-600 font-semibold">{t('map_distance')}</p>
+                            <p className="text-sm text-gray-800 font-medium">
+                              {calculateDistance(
+                                userLocation.lat,
+                                userLocation.lng,
+                                selectedPoi.location.lat,
+                                selectedPoi.location.lng
+                              )} km
+                            </p>
+                          </div>
                         </div>
                       )}
-                      {selectedPoi.phone && (
-                        <div className="flex items-start gap-3">
-                          <span className="text-sm text-gray-600 font-semibold min-w-16">{t('map_phone')}:</span>
-                          <span className="text-sm text-gray-800">{selectedPoi.phone}</span>
+
+                      <div className="flex items-start gap-3 bg-[#EAEAEA] rounded-lg p-3">
+                        <PriceIcon className="w-5 h-5 text-[#333333] mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-600 font-semibold">{t('poi_price')}</p>
+                          <p className="text-sm text-gray-800 font-medium">{selectedPoi.price || '$$'}</p>
+                        </div>
+                      </div>
+
+                      {(selectedPoi.address || selectedPoi.phone) && (
+                        <div className="space-y-2">
+                          {selectedPoi.address && (
+                            <div className="flex items-start gap-3">
+                              <span className="text-sm text-gray-600 font-semibold min-w-16">{t('map_address')}:</span>
+                              <span className="text-sm text-gray-800">{selectedPoi.address}</span>
+                            </div>
+                          )}
+                          {selectedPoi.phone && (
+                            <div className="flex items-start gap-3">
+                              <span className="text-sm text-gray-600 font-semibold min-w-16">{t('map_phone')}:</span>
+                              <span className="text-sm text-gray-800">{selectedPoi.phone}</span>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
+
+                      <NarrationBlock
+                        narration={selectedPoi.narration}
+                        deviceLanguage={language}
+                      />
+                    </>
                   )}
 
-                  <NarrationBlock
-                    narration={selectedPoi.narration}
-                    deviceLanguage={language}
-                  />
+                  {activeDetailTab === 'menu' && (
+                    <>
+                      {(selectedPoi.menu || []).length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-[#DDDDDD] p-5 text-center text-sm text-[#757575]">
+                          {t('map_menu_empty')}
+                        </div>
+                      ) : (
+                        Object.entries(getGroupedMenu(selectedPoi.menu)).map(([category, items]) => (
+                          <div key={category} className="space-y-3">
+                            <h4 className="text-sm font-bold text-[#333333] uppercase tracking-wide">{category}</h4>
+                            {items.map((item) => (
+                              <div key={item.id} className="rounded-xl border border-[#DDDDDD] overflow-hidden bg-[#FFFFFF] shadow-sm">
+                                {item.image ? (
+                                  <img
+                                    src={item.image}
+                                    alt={getLocalizedMenuField(item.name)}
+                                    loading="lazy"
+                                    className="w-full h-32 object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-32 bg-[#EAEAEA] flex items-center justify-center text-sm text-[#757575]">
+                                    {t('map_menu_placeholder')}
+                                  </div>
+                                )}
+                                <div className="p-3">
+                                  <div className="flex items-start justify-between gap-3 mb-1">
+                                    <p className="text-sm font-semibold text-[#212121]">{getLocalizedMenuField(item.name)}</p>
+                                    <p className="text-sm font-bold text-[#DC3545] whitespace-nowrap">{formatMenuPrice(item)}</p>
+                                  </div>
+                                  <p className="text-xs text-[#757575] leading-relaxed">
+                                    {getLocalizedMenuField(item.description)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ))
+                      )}
+                    </>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="grid grid-cols-2 gap-3 pt-3">

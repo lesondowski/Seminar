@@ -192,6 +192,90 @@ export const mockPOIs = [
   },
 ];
 
+const menuSeedByPOI = {
+  1: [
+    {
+      id: '1-1',
+      name: { vi: 'Chè Khúc Bạch', en: 'Almond Jelly Dessert', zh: '杏仁奶冻甜汤' },
+      description: {
+        vi: 'Khúc bạch mềm mịn, ăn cùng nhãn và hạnh nhân rang.',
+        en: 'Silky almond jelly served with longan and roasted almonds.',
+        zh: '嫩滑杏仁奶冻，搭配龙眼和烤杏仁。',
+      },
+      price: 42000,
+      currency: 'VND',
+      image: '/images/poi/1.jpg',
+      category: 'Dessert',
+    },
+    {
+      id: '1-2',
+      name: { vi: 'Chè Thập Cẩm', en: 'Mixed Sweet Soup', zh: '什锦甜汤' },
+      description: {
+        vi: 'Nhiều loại topping truyền thống, vị ngọt thanh.',
+        en: 'Traditional mixed toppings with a light sweet broth.',
+        zh: '传统配料丰富，甜而不腻。',
+      },
+      price: 35000,
+      currency: 'VND',
+      image: '',
+      category: 'Dessert',
+    },
+  ],
+  2: [
+    {
+      id: '2-1',
+      name: { vi: 'Phở Bò Tái', en: 'Rare Beef Pho', zh: '生牛肉河粉' },
+      description: {
+        vi: 'Nước dùng ninh xương nhiều giờ, thịt tái mềm.',
+        en: 'Bone broth simmered for hours with tender rare beef slices.',
+        zh: '长时间熬制骨汤，搭配嫩生牛肉。',
+      },
+      price: 75000,
+      currency: 'VND',
+      image: '/images/poi/2.png',
+      category: 'Main',
+    },
+    {
+      id: '2-2',
+      name: { vi: 'Phở Gà', en: 'Chicken Pho', zh: '鸡肉河粉' },
+      description: {
+        vi: 'Nước dùng thanh nhẹ, phù hợp buổi sáng.',
+        en: 'A lighter broth, perfect for breakfast.',
+        zh: '清爽汤底，适合早餐。',
+      },
+      price: 68000,
+      currency: 'VND',
+      image: '',
+      category: 'Main',
+    },
+  ],
+  4: [
+    {
+      id: '4-1',
+      name: { vi: 'Cà Phê Sữa Đá', en: 'Vietnamese Iced Milk Coffee', zh: '越南冰奶咖啡' },
+      description: {
+        vi: 'Cà phê rang đậm pha phin cùng sữa đặc.',
+        en: 'Bold drip coffee with condensed milk over ice.',
+        zh: '浓郁滴滤咖啡配炼乳和冰块。',
+      },
+      price: 32000,
+      currency: 'VND',
+      image: '/images/poi/4.png',
+      category: 'Drink',
+    },
+  ],
+};
+
+mockPOIs.forEach((poi) => {
+  poi.menu = menuSeedByPOI[poi.id] || [];
+  if (!poi.status) {
+    poi.status = 'approved';
+  }
+  if (!poi.createdBy) {
+    poi.createdBy = poi.id % 2 === 0 ? 'owner2@foodtour.vn' : 'owner1@foodtour.vn';
+  }
+});
+
 export const mockTours = [
   {
     id: 1,

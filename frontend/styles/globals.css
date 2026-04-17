@@ -111,12 +111,53 @@ body {
   }
 }
 
+@keyframes routeDash {
+  from {
+    stroke-dashoffset: 120;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes destinationPulse {
+  0% {
+    stroke-opacity: 1;
+    fill-opacity: 0.28;
+    transform: scale(1);
+  }
+  70% {
+    stroke-opacity: 0.35;
+    fill-opacity: 0.1;
+    transform: scale(1.1);
+  }
+  100% {
+    stroke-opacity: 1;
+    fill-opacity: 0.28;
+    transform: scale(1);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-in-out;
 }
 
 .animate-slide-in-up {
   animation: slideInUp 0.3s ease-in-out;
+}
+
+.route-polyline {
+  filter: drop-shadow(0 0 4px rgba(17, 17, 17, 0.3));
+}
+
+.route-polyline-animated {
+  stroke-dasharray: 12;
+  animation: routeDash 1.3s linear 1;
+}
+
+.route-destination-pulse {
+  animation: destinationPulse 1.8s ease-in-out infinite;
+  transform-origin: center;
 }
 
 /* Utility classes */

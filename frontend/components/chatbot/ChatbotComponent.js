@@ -32,8 +32,9 @@ export default function ChatbotComponent() {
     setError('');
 
     try {
-      // Simulate API call to chatbot backend
-      const response = await fetch('/api/chat', {
+      // Call backend chatbot API
+      const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: input }),

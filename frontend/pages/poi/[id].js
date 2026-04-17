@@ -1,8 +1,9 @@
 import { useRouter } from 'next/router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Navbar from '../../components/common/Navbar';
-import { mockPOIs } from '../../utils/api/mockData';
+import { fetchPOIById } from '../../utils/api/poiService';
 import Button from '../../components/common/Button';
+import Loading from '../../components/common/Loading';
 import { useTourCart } from '../../utils/tourCart/TourCartContext';
 import MapComponent from '../../components/map/MapComponent';
 import { CheckIcon, StarIcon, DirectionIcon, PlusIcon } from '../../components/common/Icons';
@@ -13,13 +14,11 @@ export default function POIDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   const [toast, setToast] = useState(false);
+  const [poi, setPoi] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const { userPOIs, addPOI } = useTourCart();
   const { language } = useLanguage();
-
-  const poi = useMemo(() => {
-    if (!id) return null;
-    return mockPOIs.find((item) => String(item.id) === String(id));
-  }, [id]);
 
   const alreadyInCart = useMemo(() => userPOIs.some((p) => String(p.id) === String(id)), [userPOIs, id]);
   const poiTourPosition = useMemo(
@@ -27,10 +26,33 @@ export default function POIDetailPage() {
     [userPOIs, id]
   );
 
-  if (!poi) {
+  useEffect(() => {
+    if (!router.isReady) return;
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      const returnTo = `/poi/${id}`;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('redirectAfterLogin', returnTo);
+      }
+      router.replace({ pathname: '/auth/login', query: { returnTo } });
+      return;
+    }
+    fetchPOIById(id).then((data) => {
+      if (!data) setNotFound(true);
+      else setPoi(data);
+      setLoading(false);
+    }).catch(() => {
+      setNotFound(true);
+      setLoading(false);
+    });
+  }, [router, router.isReady, id]);
+
+  if (loading) return <Loading fullScreen />;
+
+  if (notFound || !poi) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <p className="text-gray-600">Không tìm thấy POI</p>
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <p className="text-[#757575]">Không tìm thấy POI</p>
       </div>
     );
   }
@@ -46,15 +68,15 @@ export default function POIDetailPage() {
           <span className="inline-flex items-center gap-2"><CheckIcon className="w-4 h-4" />Đã thêm vào Tour</span>
         </div>
       )}
-      <div className="min-h-screen bg-gray-100 p-4">
+      <div className="min-h-screen bg-[#F5F5F5] p-4">
         <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
           <img src={poi.image || '/placeholder.jpg'} alt={poi.name} className="w-full h-56 object-cover" />
 
           <div className="p-6 space-y-4">
             <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
               <div>
-                <h1 className="text-4xl font-bold text-gray-900">{poi.name}</h1>
-                <div className="flex items-center gap-3 mt-2 text-gray-500">
+                <h1 className="text-4xl font-bold text-[#212121]">{poi.name}</h1>
+                <div className="flex items-center gap-3 mt-2 text-[#757575]">
                   <StarIcon className="w-5 h-5 text-orange-500" />
                   <span className="font-semibold text-xl text-orange-500">{poi.rating}</span>
                   <span>1234 lượt xem</span>

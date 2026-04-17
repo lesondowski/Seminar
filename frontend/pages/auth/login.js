@@ -8,6 +8,8 @@ import Loading from '../../components/common/Loading';
 import { validateEmail } from '../../utils/validation';
 import { useLanguage } from '../../utils/i18n/LanguageContext';
 import { NoodleBowlIcon, CheckIcon } from '../../components/common/Icons';
+import { loginUser } from '../../utils/auth/authService';
+import { sendOTP, verifyOTP } from '../../utils/otp';
 
 const LANG_OPTIONS = [
   { label: 'Tiếng Việt', value: 'vi' },
@@ -26,7 +28,6 @@ export default function LoginPage() {
   // OTP States
   const [step, setStep] = useState('email'); // 'email' -> 'otp' -> 'language' -> 'complete'
   const [otp, setOtp] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [otpAttempts, setOtpAttempts] = useState(0);
   const [otpTimeout, setOtpTimeout] = useState(0);
 
@@ -55,15 +56,12 @@ export default function LoginPage() {
     setEmailError('');
 
     try {
-      const newOtp = '123456';
-      setGeneratedOtp(newOtp);
       setOtpAttempts(0);
       setOtpTimeout(300);
       setOtp('');
       setOtpError('');
 
-      await new Promise(resolve => setTimeout(resolve, 500));
-      console.log(`OTP for ${email}: ${newOtp}`);
+      await sendOTP(email);
 
       setModal({
         isOpen: true, type: 'success',
@@ -90,19 +88,7 @@ export default function LoginPage() {
     setOtpError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      if (otp !== generatedOtp) {
-        const newAttempts = otpAttempts + 1;
-        setOtpAttempts(newAttempts);
-        if (newAttempts >= 3) {
-          setOtpError(t('login_otp_too_many'));
-          setTimeout(() => { setStep('email'); setOtp(''); setOtpAttempts(0); }, 2000);
-        } else {
-          setOtpError(t('login_otp_wrong_attempts', { n: 3 - newAttempts }));
-        }
-        return;
-      }
+      await verifyOTP(email, otp);
 
       setModal({ isOpen: true, type: 'success', title: t('login_otp_success_title'), message: t('login_otp_success_msg') });
       setTimeout(() => { setStep('language'); setModal(m => ({ ...m, isOpen: false })); }, 2000);
@@ -119,26 +105,26 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, language, otpVerified: true }),
-      }).catch(() => ({
-        ok: true,
-        json: () => Promise.resolve({ success: true, email, language, role: 'visitor' }),
-      }));
-
-      if (!response.ok) throw new Error(t('login_error_title'));
-
-      const data = await response.json();
+      const data = await loginUser(email, language, true);
 
       // Persist session – language already saved via changeLanguage()
       localStorage.setItem('userEmail', email);
       localStorage.setItem('userRole', data.role || 'visitor');
       changeLanguage(language); // ensure context + localStorage in sync
 
+      const queryReturnTo = typeof router.query.returnTo === 'string' ? router.query.returnTo : '';
+      const storedRedirect =
+        typeof window !== 'undefined' ? sessionStorage.getItem('redirectAfterLogin') || '' : '';
+      const redirectTarget = queryReturnTo || storedRedirect || '/';
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('redirectAfterLogin');
+      }
+
       setModal({ isOpen: true, type: 'success', title: t('login_success_title'), message: t('login_success_msg', { email }) });
-      setTimeout(() => { router.push('/'); }, 2000);
+      setTimeout(() => {
+        router.push(redirectTarget);
+      }, 2000);
     } catch (err) {
       setModal({ isOpen: true, type: 'error', title: t('login_error_title'), message: err.message });
     } finally {

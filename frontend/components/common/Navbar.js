@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useLanguage } from '../../utils/i18n/LanguageContext';
 import { NoodleBowlIcon, CheckIcon, MenuIcon } from './Icons';
+import { logoutUser } from '../../utils/auth/authService';
 
 const LANG_OPTIONS = [
   { value: 'vi', label: 'VI' },
@@ -26,10 +27,8 @@ export default function Navbar() {
     setUserEmail(email || '');
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userLanguage');
-    localStorage.removeItem('userRole');
+  const handleLogout = async () => {
+    await logoutUser();
     router.push('/auth/login');
   };
 
@@ -60,7 +59,7 @@ export default function Navbar() {
                   {t('nav_admin')}
                 </Link>
               )}
-              <Link href="" className="text-[#212121] hover:text-[#333333] font-medium transition border-b-2 border-transparent hover:border-[#333333]">
+              <Link href="/scan-qr" className="text-[#212121] hover:text-[#333333] font-medium transition border-b-2 border-transparent hover:border-[#333333]">
                 {t('nav_qr')}
               </Link>
             </div>
@@ -162,6 +161,9 @@ export default function Navbar() {
             </Link>
             <Link href="/tour/tour-mode" className="block px-4 py-2 text-[#212121] hover:bg-[#F5F5F5] rounded transition" onClick={() => setMenuOpen(false)}>
               {t('nav_tour')}
+            </Link>
+            <Link href="/scan-qr" className="block px-4 py-2 text-[#212121] hover:bg-[#F5F5F5] rounded transition" onClick={() => setMenuOpen(false)}>
+              {t('nav_qr')}
             </Link>
             {/* Language options in mobile */}
             <div className="px-4 py-2 border-t border-[#EEEEEE]">
