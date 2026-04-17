@@ -1,0 +1,22 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: smart_food_tour_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DB:-smart_food_tour}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-change_me}
+    ports:
+      - '3307:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: smart_food_tour_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+
+volumes:
+  mysql_data:
