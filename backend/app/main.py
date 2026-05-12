@@ -1,33 +1,32 @@
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import api_router
-from app.config import get_settings
-from app.database import Base, engine
-from app.models import MenuItem, POI, Tour, User
+from app.config import settings
+from app.routers.admin import router as admin_router
+from app.routers.bootstrap import router as bootstrap_router
+from app.routers.chat import router as chat_router
+from app.routers.health import router as health_router
+from app.routers.monitor import router as monitor_router
+from app.routers.visitor_auth import router as visitor_auth_router
 
-settings = get_settings()
-
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title=settings.app_name, debug=settings.app_debug)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=[settings.frontend_base_url, "http://127.0.0.1:3000"],
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-app.mount('/static', StaticFiles(directory=settings.upload_dir), name='static')
+app.include_router(health_router)
+app.include_router(visitor_auth_router)
+app.include_router(bootstrap_router)
+app.include_router(chat_router)
+app.include_router(admin_router)
+app.include_router(monitor_router)
 
-app.include_router(api_router, prefix=settings.api_prefix)
 
-
-@app.on_event('startup')
-def startup_event():
-    # Baseline for MVP. Replace with Alembic migrations in production.
-    Base.metadata.create_all(bind=engine)
+@app.get("/")
+def root():
+    return {"success": True, "data": {"service": settings.app_name}, "error": None}

@@ -1,44 +1,24 @@
-from functools import lru_cache
-from typing import List
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
+    app_name: str = "GPS Visitor Experience Backend"
+    app_env: str = "development"
+    app_host: str = "0.0.0.0"
+    app_port: int = 8000
+    app_debug: bool = True
 
-    app_name: str = 'Smart Food Tour Backend'
-    app_env: str = 'development'
-    api_prefix: str = '/api/v1'
-    backend_cors_origins: str = 'http://localhost:3000,http://localhost:3001'
+    database_url: str = "mysql+pymysql://gps_user:gps_password@127.0.0.1:3306/gps_visitor_app?charset=utf8mb4"
+    redis_url: str = "redis://127.0.0.1:6379/0"
 
-    mysql_host: str = 'localhost'
-    mysql_port: int = 3306
-    mysql_user: str = 'root'
-    mysql_password: str = 'change_me'
-    mysql_db: str = 'smart_food_tour'
+    frontend_base_url: str = "http://localhost:3000"
+    jwt_access_secret: str = "replace_with_access_secret"
+    jwt_refresh_secret: str = "replace_with_refresh_secret"
+    jwt_algorithm: str = "HS256"
 
-    redis_url: str = 'redis://localhost:6379/0'
+    monitor_active_window_minutes: int = 5
 
-    jwt_secret_key: str = 'change_this_secret_key'
-    jwt_algorithm: str = 'HS256'
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 7
-
-    upload_dir: str = 'uploads'
-
-    @property
-    def sqlalchemy_database_uri(self) -> str:
-        return (
-            f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}@"
-            f"{self.mysql_host}:{self.mysql_port}/{self.mysql_db}?charset=utf8mb4"
-        )
-
-    @property
-    def cors_origins(self) -> List[str]:
-        return [origin.strip() for origin in self.backend_cors_origins.split(',') if origin.strip()]
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
+settings = Settings()

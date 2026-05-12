@@ -1,23 +1,16 @@
-import '../styles/globals.css'
-import 'leaflet/dist/leaflet.css'
-import dynamic from 'next/dynamic'
-import { LanguageProvider } from '../utils/i18n/LanguageContext'
-import { TourCartProvider } from '../utils/tourCart/TourCartContext'
-import { ChatbotProvider } from '../utils/chatbot/ChatbotContext'
+import "@/styles/globals.css";
+import { Be_Vietnam_Pro } from "next/font/google";
 
-const ChatbotWidget = dynamic(() => import('../components/chatbot/ChatbotWidget'), {
-  ssr: false,
-})
+const beVietnamPro = Be_Vietnam_Pro({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
 
 export default function App({ Component, pageProps }) {
   return (
-    <LanguageProvider>
-      <TourCartProvider>
-        <ChatbotProvider>
-          <Component {...pageProps} />
-          <ChatbotWidget />
-        </ChatbotProvider>
-      </TourCartProvider>
-    </LanguageProvider>
-  )
+    <div className={beVietnamPro.className}>
+      <Component {...pageProps} />
+    </div>
+  );
 }

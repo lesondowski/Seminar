@@ -1,77 +1,77 @@
-# =========================
-# Node / Next.js
-# =========================
-node_modules/
-.next/
-out/
-dist/
-build/
+# ------------------------------
+# Global
+# ------------------------------
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
 
-# logs
+# ------------------------------
+# Python / Backend
+# ------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# ------------------------------
+# Node / Frontend
+# ------------------------------
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+**/coverage/
+**/*.tsbuildinfo
+
+# Package manager logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# env
+# ------------------------------
+# Environment files
+# ------------------------------
 .env
-.env.local
-.env.development
-.env.production
+.env.*
+!.env.example
+!.env.*.example
 
-# Vercel
-.vercel
+# ------------------------------
+# Test artifacts
+# ------------------------------
+frontend/test-results/
+frontend/playwright-report/
 
-# =========================
-# Python / FastAPI
-# =========================
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# virtual env
-venv/
-.env/
-.envrc
-
-# =========================
-# RAG / Data / Vector DB
-# =========================
-data/raw/
-data/processed/
-data/vector/
-
-*.faiss
-*.index
-*.pkl
-
-# =========================
-# OS files
-# =========================
-.DS_Store
-Thumbs.db
-
-# =========================
-# IDE
-# =========================
+# ------------------------------
+# Editor / IDE
+# ------------------------------
 .vscode/
 .idea/
 
-# =========================
-# Logs & temp
-# =========================
-*.log
-tmp/
-temp/
+# ------------------------------
+# Local tools / misc project dirs
+# ------------------------------
+.sixth/
 
-# =========================
-# Upload files
-# =========================
-uploads/
+# ------------------------------
+# Docs
+# ------------------------------
 
-# =========================
-# Docker
-# =========================
-*.pid
-*.seed
-docker-compose.override.yml
+/docs/
+/uxui_image/
+/diagram/

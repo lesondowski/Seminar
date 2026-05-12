@@ -4,45 +4,76 @@
 
 Tài liệu này tách riêng phần activity diagram ra khỏi PRD để PRD gọn hơn, đồng thời giúp nhóm dự án dễ theo dõi các luồng nghiệp vụ chính dưới dạng sơ đồ.
 
-Tổng số activity diagram trong tài liệu này là 9.
+Tổng số activity diagram trong tài liệu này là 12, kèm 1 sequence diagram tổng hợp.
+
+> Lưu ý: AD-001 và AD-002 mô tả luồng vào app theo PRD_01 (visitor-first, QR-based). Các AD còn lại mô tả luồng nghiệp vụ chung.
 
 ## 2. Danh mục activity diagram
 
 | Mã | Tên lược đồ | Mô tả ngắn |
 |---|---|---|
-| AD-001 | Đăng nhập và khởi tạo | Mô tả luồng mở app, đăng nhập, xác minh OTP, tải dữ liệu ban đầu |
-| AD-002 | Explore Mode | Mô tả luồng người dùng khám phá POI trên bản đồ |
-| AD-003 | Tour Mode | Mô tả luồng người dùng chọn tour và đi theo hành trình |
-| AD-004 | Gửi POI và kiểm duyệt | Mô tả quy trình tạo POI, gửi duyệt, approve hoặc reject |
-| AD-005 | Admin quản lý user | Mô tả quy trình admin tạo, cập nhật, xem user |
-| AD-006 | Upload ảnh POI và cập nhật menu | Mô tả luồng upload ảnh và quản lý menu |
-| AD-007 | Chọn vị trí trên bản đồ | Mô tả luồng geocode, chọn gợi ý, ghim map và reverse geocode |
-| AD-008 | Owner hoặc Moderator cập nhật nội dung | Mô tả quy trình chỉnh sửa nội dung quán |
-| AD-009 | Chatbot hỏi đáp | Mô tả quy trình gửi câu hỏi và nhận phản hồi chatbot |
+| AD-001 | Chọn cách truy cập | Mô tả luồng visitor mở app và chọn vào trang chủ hoặc quét QR |
+| AD-002 | QR Access và khởi tạo session | Mô tả luồng quét QR, tạo session, bootstrap dữ liệu đầy đủ |
+| AD-003 | Explore Mode | Mô tả luồng người dùng khám phá POI trên bản đồ |
+| AD-004 | Tour Mode | Mô tả luồng người dùng chọn tour và đi theo hành trình |
+| AD-005 | Quản lý POI theo vai trò | Mô tả quy trình admin hoặc manager tạo và cập nhật POI theo phạm vi quyền |
+| AD-006 | Admin publish và theo dõi hệ thống | Mô tả quy trình publish snapshot và theo dõi người dùng hoạt động |
+| AD-007 | Upload ảnh POI và cập nhật nội dung | Mô tả luồng upload ảnh và cập nhật translation/audio cho POI |
+| AD-008 | Chọn vị trí trên bản đồ | Mô tả luồng geocode, chọn gợi ý, ghim map và reverse geocode |
+| AD-009 | Manager cập nhật nội dung POI | Mô tả quy trình manager chỉnh sửa nội dung POI thuộc quyền sở hữu |
+| AD-010 | Chatbot hỏi đáp | Mô tả quy trình gửi câu hỏi và nhận phản hồi chatbot |
 
 ## 3. Chi tiết từng activity diagram
 
-### AD-001 - Đăng nhập và khởi tạo
+### AD-001 - Chọn cách truy cập
 
-Lược đồ này nói về quá trình người dùng mở ứng dụng, xác thực, nhận quyền và chuẩn bị dữ liệu ban đầu để bắt đầu sử dụng hệ thống.
+Lược đồ này nói về quá trình visitor mở ứng dụng và lựa chọn cách vào app theo PRD_01: vào trang chủ để xem bản đồ và POI cơ bản mà không cần QR, hoặc quét QR để vào phiên trải nghiệm đầy đủ.
 
 ```mermaid
 flowchart TD
-    A[Mở ứng dụng] --> B{Có đăng nhập chưa?}
-    B -->|Chưa| C[Nhập email]
-    C --> D[Gửi OTP]
-    D --> E[Nhập OTP]
-    E --> F[Xác minh OTP]
-    F -->|Hợp lệ| G[Đăng nhập thành công]
-    F -->|Không hợp lệ| E
-    B -->|Đã có phiên| G
-    G --> H[Tải hồ sơ người dùng và role]
-    H --> I[Tải dữ liệu ban đầu]
-    I --> J[Khởi tạo bản đồ và vị trí]
-    J --> K[Vào màn hình chính]
+    A[Visitor mở ứng dụng] --> B[Hiển thị màn hình chào]
+    B --> C{Visitor chọn cách truy cập}
+    C -->|Vào trang chủ| D[Tải bản đồ và POI cơ bản]
+    D --> E[Hiển thị bản đồ khu phố ẩm thực]
+    E --> F[Visitor khám phá POI ở mức cơ bản]
+    C -->|Quét QR| G[Mở QR scanner]
+    G --> H[POST /api/v1/auth/scan-qr]
+    H --> I{QR hợp lệ?}
+    I -->|Không| J[Hiển thị lỗi QR]
+    J --> G
+    I -->|Có - free| K[Tạo session active]
+    I -->|Có - paid| L[POST /api/v1/auth/payment/mock]
+    L --> K
+    K --> M[GET /api/v1/bootstrap]
+    M --> N[Lưu bootstrap data vào store]
+    N --> O[Vào trải nghiệm đầy đủ]
 ```
 
-### AD-002 - Explore Mode
+### AD-002 - QR Access và khởi tạo session
+
+Lược đồ này nói về quá trình quét QR, validate, tạo session, gọi bootstrap và chuẩn bị dữ liệu đầy đủ cho phiên trải nghiệm visitor theo PRD_01.
+
+```mermaid
+flowchart TD
+    A[Visitor quét QR] --> B[POST /api/v1/auth/scan-qr]
+    B --> C{Kết quả validate QR}
+    C -->|QR invalid hoặc expired| D[Hiển thị lỗi]
+    D --> E[Visitor quay lại màn hình chào]
+    C -->|QR free| F[Tạo session active]
+    C -->|QR paid| G[POST /api/v1/auth/payment/mock]
+    G --> H{Payment thành công?}
+    H -->|Không| I[Hiển thị lỗi payment]
+    H -->|Có| F
+    F --> J[Cấp access token và refresh token cookie]
+    J --> K[GET /api/v1/bootstrap]
+    K --> L{Bootstrap thành công?}
+    L -->|Không| M[Hiển thị lỗi, không vào runtime]
+    L -->|Có| N[Lưu payload vào Zustand store]
+    N --> O[Khởi tạo bản đồ, GPS, audio queue]
+    O --> P[Vào màn hình chính đầy đủ]
+```
+
+### AD-003 - Explore Mode
 
 Lược đồ này nói về cách visitor duyệt POI trên bản đồ, xem chi tiết và tương tác với nội dung liên quan đến điểm đến.
 
@@ -59,7 +90,7 @@ flowchart TD
     H --> I
 ```
 
-### AD-003 - Tour Mode
+### AD-004 - Tour Mode
 
 Lược đồ này nói về cách người dùng chọn một tour, di chuyển theo lộ trình và nhận nội dung theo thứ tự hành trình.
 
@@ -78,43 +109,43 @@ flowchart TD
     I -->|Không| J[Kết thúc tour]
 ```
 
-### AD-004 - Gửi POI và kiểm duyệt
+### AD-005 - Quản lý POI theo vai trò
 
-Lược đồ này nói về quy trình owner, moderator hoặc admin tạo POI và quy trình kiểm duyệt POI bởi admin hoặc moderator.
-
-```mermaid
-flowchart TD
-    A[Tạo POI mới] --> B[Nhập thông tin quán]
-    B --> C[Nhập menu, hình ảnh, vị trí]
-    C --> D[Lưu POI]
-    D --> E[POI ở trạng thái pending]
-    E --> F[Admin hoặc Moderator mở danh sách kiểm duyệt]
-    F --> G{Kết quả kiểm duyệt}
-    G -->|Approve| H[POI chuyển sang approved]
-    G -->|Reject| I[POI chuyển sang rejected]
-    I --> J[Người tạo cập nhật lại nội dung]
-    J --> D
-    H --> K[POI hiển thị trên map và các luồng trải nghiệm]
-```
-
-### AD-005 - Admin quản lý user
-
-Lược đồ này nói về quy trình admin tạo hoặc cập nhật tài khoản vận hành trong dashboard.
+Lược đồ này nói về quy trình admin hoặc manager tạo, cập nhật POI theo phạm vi quyền hiện hành.
 
 ```mermaid
 flowchart TD
-    A[Admin mở User Management] --> B[Xem danh sách user]
-    B --> C[Nhập email, role, ngôn ngữ]
-    C --> D[Gửi yêu cầu tạo hoặc cập nhật user]
-    D --> E{Yêu cầu hợp lệ?}
-    E -->|Có| F[Lưu user]
-    E -->|Không| G[Hiển thị lỗi]
-    F --> H[Cập nhật lại danh sách user]
+    A[Người vận hành mở POI Management] --> B{Vai trò hiện tại}
+    B -->|Admin| C[Admin tạo hoặc cập nhật POI]
+    B -->|Manager| D[Manager tạo hoặc cập nhật POI thuộc phạm vi sở hữu]
+    C --> E[Lưu POI vào editable tables]
+    D --> E
+    E --> F{Hợp lệ dữ liệu?}
+    F -->|Không| G[Hiển thị lỗi validate]
+    F -->|Có| H[Ghi audit log]
+    H --> I[POI sẵn sàng cho publish]
 ```
 
-### AD-006 - Upload ảnh POI và cập nhật menu
+### AD-006 - Admin publish và theo dõi hệ thống
 
-Lược đồ này nói về quy trình chọn file ảnh, upload ảnh cho quán hoặc món ăn, sau đó thêm, sửa, xóa menu trước khi lưu POI.
+Lược đồ này nói về quy trình admin publish dữ liệu và theo dõi chỉ số online devices trên dashboard.
+
+```mermaid
+flowchart TD
+    A[Admin mở Dashboard] --> B[Kiểm tra số liệu POI và online devices]
+    B --> C[Nhấn Publish]
+    C --> D[POST /api/v1/publish]
+    D --> E{Có publish lock?}
+    E -->|Có| F[Hiển thị lỗi PUBLISH_LOCKED]
+    E -->|Không| G[Thực hiện publish snapshot atomic]
+    G --> H[Hiển thị thông báo publish thành công]
+    H --> I[GET /api/v1/monitor/online-devices]
+    I --> J[Cập nhật card người dùng hoạt động]
+```
+
+### AD-007 - Upload ảnh POI và cập nhật nội dung
+
+Lược đồ này nói về quy trình chọn ảnh POI, upload ảnh, sau đó cập nhật translation và audio_url trước khi lưu POI.
 
 ```mermaid
 flowchart TD
@@ -122,18 +153,12 @@ flowchart TD
     B --> C[Chọn upload ảnh quán]
     C --> D[Gửi file ảnh lên server]
     D --> E[Lưu URL ảnh vào POI]
-    E --> F[Thêm hoặc sửa món ăn]
-    F --> G{Có upload ảnh món ăn không?}
-    G -->|Có| H[Upload ảnh món ăn]
-    H --> I[Lưu URL ảnh vào menu item]
-    G -->|Không| I
-    I --> J{Có xóa món không?}
-    J -->|Có| K[Xóa menu item]
-    J -->|Không| L[Lưu toàn bộ menu]
-    K --> L
+    E --> F[Cập nhật translation theo ngôn ngữ]
+    F --> G[Cập nhật audio_url nếu có]
+    G --> H[Lưu toàn bộ nội dung POI]
 ```
 
-### AD-007 - Chọn vị trí trên bản đồ
+### AD-008 - Chọn vị trí trên bản đồ
 
 Lược đồ này nói về quy trình nhập địa chỉ, nhận gợi ý geocode, ghim điểm trên bản đồ và cập nhật vị trí POI.
 
@@ -151,24 +176,24 @@ flowchart TD
     G --> J[Lưu vị trí vào POI]
 ```
 
-### AD-008 - Owner hoặc Moderator cập nhật nội dung
+### AD-009 - Manager cập nhật nội dung POI
 
-Lược đồ này nói về quy trình chỉnh sửa nội dung quán hiện có, bao gồm thông tin quán, narration, menu, hình ảnh và vị trí.
+Lược đồ này nói về quy trình manager chỉnh sửa POI thuộc quyền sở hữu, bao gồm thông tin, dịch thuật, hình ảnh và vị trí.
 
 ```mermaid
 flowchart TD
-    A[Mở POI Management] --> B[Chọn POI cần chỉnh sửa]
-    B --> C[Kiểm tra quyền chỉnh sửa]
-    C -->|Được phép| D[Cập nhật thông tin quán]
-    D --> E[Cập nhật narration]
-    E --> F[Cập nhật menu và hình ảnh]
-    F --> G[Cập nhật vị trí nếu cần]
-    G --> H[Lưu thay đổi]
-    H --> I[Hệ thống cập nhật dữ liệu]
-    C -->|Không được phép| J[Hiển thị thông báo lỗi quyền]
+    A[Manager mở POI Management] --> B[Chọn POI cần chỉnh sửa]
+    B --> C[Kiểm tra ownership theo owner_manager_user_id]
+    C -->|Được phép| D[Cập nhật thông tin POI]
+    D --> E[Cập nhật translation và audio_url]
+    E --> F[Cập nhật hình ảnh hoặc vị trí]
+    F --> G[Lưu thay đổi]
+    G --> H[Ghi audit log]
+    H --> I[Hệ thống cập nhật dữ liệu thành công]
+    C -->|Không được phép| J[Trả lỗi 403 và hiển thị thông báo quyền]
 ```
 
-### AD-009 - Chatbot hỏi đáp
+### AD-010 - Chatbot hỏi đáp
 
 Lược đồ này nói về quy trình người dùng đặt câu hỏi bằng ngôn ngữ tự nhiên và hệ thống trả phản hồi chatbot.
 
@@ -185,6 +210,133 @@ flowchart TD
 
 ## 4. Tóm tắt phục vụ review
 
-1. Tài liệu này hiện có 9 activity diagram.
+1. Tài liệu này hiện có 12 activity diagram và 1 sequence diagram tổng hợp.
 2. Đây là bộ diagram cần có để mô tả đầy đủ các luồng nghiệp vụ chính của Smart Food Tour App.
 3. Nếu cần nộp học thuật hoặc báo cáo chính thức, có thể dùng trực tiếp file này làm phụ lục sơ đồ cho PRD.
+
+## 5. Phần bổ sung Manager (Thay thế)
+
+### AD-011 - Manager đăng nhập và quản lý POI
+
+Lược đồ này mô tả manager đăng nhập riêng và chỉ thao tác POI thuộc phạm vi quản lý.
+
+```mermaid
+flowchart TD
+    A[Manager mở trang đăng nhập] --> B[POST /api/v1/manager/login]
+    B --> C{Đăng nhập hợp lệ?}
+    C -->|Không| D[Hiển thị lỗi đăng nhập]
+    C -->|Có| E[Vào manager POI list]
+    E --> F[GET /api/v1/manager/pois]
+    F --> G[Chọn POI để sửa hoặc tạo mới]
+    G --> H[POST hoặc PUT manager POI API]
+    H --> I{POI thuộc manager?}
+    I -->|Không| J[403 Forbidden]
+    I -->|Có| K[Lưu POI thành công]
+```
+
+### AD-012 - Manager upload POI image
+
+Lược đồ này mô tả upload file ảnh trực tiếp cho POI manager sở hữu.
+
+```mermaid
+flowchart TD
+    A[Manager mở POI editor] --> B[Chọn file ảnh]
+    B --> C[POST /api/v1/manager/pois/{id}/image]
+    C --> D{File hợp lệ?}
+    D -->|Không| E[400 hoặc 413, hiển thị lỗi]
+    D -->|Có| F[Lưu file và metadata]
+    F --> G[Cập nhật image_url trên POI]
+```
+
+## 6. Lược đồ Sequence (Đã chuẩn hóa)
+
+### SD-001 - Visitor QR Runtime và Admin Publish (Tổng thể)
+
+Lược đồ sequence dưới đây được viết lại theo kiến trúc hiện tại: visitor vào app bằng QR, bootstrap dữ liệu, chat theo bootstrap version, admin cập nhật và publish snapshot, monitor cập nhật số lượng online devices.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor V as Visitor
+    actor A as Admin
+    participant FE as Frontend (Next.js)
+    participant BE as Backend (FastAPI)
+    participant R as Redis
+    participant DB as MySQL
+
+    %% Visitor QR access
+    V->>FE: Quét QR
+    FE->>BE: POST /api/v1/auth/scan-qr
+    BE->>DB: Validate qr_access_codes + ghi qr_access_events
+
+    alt QR free hợp lệ
+        BE->>DB: Tạo visitor_session state=active
+        BE->>R: Lưu refresh token state
+        BE-->>FE: access_token + session_id
+    else QR paid hợp lệ
+        BE->>DB: Tạo visitor_session state=created
+        BE-->>FE: requires_payment=true
+        FE->>BE: POST /api/v1/auth/payment/mock
+        BE->>DB: Ghi payment_logs + state created->active
+        BE->>R: Lưu refresh token state
+        BE-->>FE: access_token
+    else QR lỗi
+        BE-->>FE: 400/404/410
+    end
+
+    %% Bootstrap
+    FE->>BE: GET /api/v1/bootstrap (Bearer access_token)
+    BE->>DB: Resolve site_id + load published snapshot
+    BE->>DB: Ghi session.bootstrap_version
+    BE-->>FE: Raw JSON bootstrap payload
+    FE->>FE: Hydrate bootstrap store (map, poi, tours, config)
+
+    %% Chatbot in runtime
+    V->>FE: Gửi câu hỏi chatbot
+    FE->>BE: POST /api/v1/chat (message + bootstrap_version)
+    BE->>DB: Validate session active + bootstrap_version
+    alt Version mismatch
+        BE-->>FE: 409 BOOTSTRAP_VERSION_MISMATCH
+    else Hợp lệ
+        BE->>DB: Query published data theo snapshot
+        BE->>DB: Ghi chatbot_logs
+        BE-->>FE: answer / fallback
+    end
+
+    %% Admin CRUD and publish
+    A->>FE: Đăng nhập admin dashboard
+    FE->>BE: POST /api/v1/admin/login
+    BE->>DB: Validate credentials
+    BE-->>FE: admin_token
+
+    A->>FE: CRUD POI/Tour
+    FE->>BE: /api/v1/admin/pois, /api/v1/admin/tours
+    BE->>DB: Read/Write editable data + audit_logs
+    BE-->>FE: success
+
+    A->>FE: Publish
+    FE->>BE: POST /api/v1/publish
+    BE->>R: Acquire publish_lock:{site_id}
+    alt Lock conflict
+        BE-->>FE: 409 PUBLISH_LOCKED
+    else Lock success
+        BE->>DB: BEGIN
+        BE->>DB: Copy editable -> published_* tables
+        BE->>DB: Update sites.current_publish_snapshot_id
+        BE->>DB: COMMIT + audit_logs
+        BE->>R: Release lock
+        BE-->>FE: Publish success
+    end
+
+    %% Dashboard monitor
+    FE->>BE: GET /api/v1/monitor/online-devices?window_minutes=5
+    BE->>DB: Count active sessions by site
+    BE-->>FE: total_online_devices + by_site
+```
+
+Ghi chú:
+
+1. Sau bootstrap, visitor runtime không gọi GET /api/v1/pois hoặc GET /api/v1/tours.
+2. Publish là atomic theo site_id, dùng Redis lock để tránh publish song song.
+3. Chatbot chỉ được tra cứu dữ liệu published của đúng bootstrap_version.
+
